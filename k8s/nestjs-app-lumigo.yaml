@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: nestjs-app
-          image: barrysolomon/nest-opentelemetry-example:latest
+          image: <YOUR REPOSITORY>/nest-opentelemetry-example:latest
           imagePullPolicy: Always  # Ensures the latest image is pulled every deployment
           ports:
             - containerPort: 3000
@@ -40,22 +40,27 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
 
+            # Enables a call to init() to manually initialize the tracer by calling await lumigo.init; in bootstrap.ts
+            - name: LUMIGO_MANUAL_INIT
+              value: "true"
+
+            - name: LUMIGO_TRACER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lumigo-secret
+                  key: api-key
+            - name: LUMIGO_ENABLE_LOGS
+              value: "true"
+            - name: LUMIGO_LOG_ENDPOINT
+              value: "https://logs-ga.lumigo-tracer-edge.golumigo.com/api/logs?token=t_f8f7b905da964eef89261"
+
             - name: OTEL_SERVICE_NAME
-              value: "NestJS-Service"   
-            - name: OTEL_LOG_LEVEL
-              value: "debug"
-
-            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
-            #   value: "http://otel-collector.monitoring.svc.cluster.local:4317"
-
-            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
-            #   value: "http://otel-collector.opentelemetry.svc.cluster.local:4317" # gRPC
-          
+              value: "SimpleNestedService"  
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://tempo.monitoring.svc.cluster.local:4317"
+              value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"  
 
           command: ["node"]
-          args: ["dist/main.js"]
+          args: ["-r", "@lumigo/opentelemetry", "dist/main.js"]
 
           resources:
             requests:

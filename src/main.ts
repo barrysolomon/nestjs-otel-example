@@ -1,4 +1,4 @@
-import * as lumigo from '@lumigo/opentelemetry';
+import { initializeOpenTelemetry } from './otel-config'; // ✅ Import OTEL initialization
 
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { NestFactory } from '@nestjs/core';
@@ -22,14 +22,14 @@ function detectRuntimeEnvironment(): string {
 
 async function bootstrap() {
 
+  // Initialize OpenTelemetry
+  await initializeOpenTelemetry();
+  
   // Initialize Lumigo
   if (process.env.LUMIGO_MANUAL_INIT === 'true') {
+    const lumigo = await import('@lumigo/opentelemetry');
     await lumigo.init;
   }
-  
-  // Initialize NestJS instrumentation
-  const nestInstrumentation = new NestInstrumentation();
-  nestInstrumentation.enable();
 
   // Initialize loggers after Lumigo is set up
   await initializeLoggers();
@@ -39,6 +39,10 @@ async function bootstrap() {
   if (usePino && pinoLogger) {
     pinoLogger.info('NestJS application is running (Pino)');
   }
+
+  // Initialize NestJS instrumentation
+  const nestInstrumentation = new NestInstrumentation();
+  nestInstrumentation.enable();
 
   // Log environment variables
   const envVars = JSON.stringify(process.env, null, 2);

@@ -119,35 +119,96 @@ export class AppService {
   }
 
   getHello(): string {
+
     if (winstonLogger) winstonLogger.info('getHello() called by Winston');
     if (pinoLogger) pinoLogger.info('getHello() called by Pino');
 
-    const activeSpan = trace.getActiveSpan();
-    if (activeSpan) {      // Set custom attributes on the active span
+    const tracer = trace.getTracer('default');
+    let activeSpan = trace.getActiveSpan();
+
+    // 🚨 If no active span exists, create a new one manually
+    if (!activeSpan) {
+      if (winstonLogger) winstonLogger.warn('⚠️ No active span detected! Creating a new root span.');
+      if (pinoLogger) pinoLogger.warn('⚠️ No active span detected! Creating a new root span.');
+
+      activeSpan = tracer.startSpan('rootSpan-manual', {}, context.active());
+      context.with(trace.setSpan(context.active(), activeSpan), () => {
+        activeSpan?.setAttribute('auto-generated', 'true');
+      });
+    }
+
+    if (activeSpan) {
+
+      if (winstonLogger) winstonLogger.info('activeSpan ' + activeSpan);
+      if (pinoLogger) pinoLogger.info('activeSpan ' + activeSpan);
+
       activeSpan.setAttribute('custom-tag', 'tag-value');
       activeSpan.setAttribute('operation', 'getHello');
       activeSpan.setAttribute('response', 'Goodbye Cruel World!');
 
       activeSpan.setAttribute('lumigo.execution_tags.execTag1', 'foo');
-      trace.getActiveSpan()?.setAttribute('lumigo.execution_tags.execTag2', 'bar');
+      activeSpan.setAttribute('lumigo.execution_tags.execTag2', 'bar');
+
     }
 
-    // Correct way to propagate the parent span using context
-    const tracer = trace.getTracer('default');
     const childSpan = tracer.startSpan('childSpan-example', {}, context.active());
-
-    // Add some attributes to the child span
     childSpan.setAttribute('processing-type', 'simple-text-return');
     childSpan.addEvent('CustomEvent: Start returning message');
-
-    // End the child span
     childSpan.end();
 
-    if (AppService.metricsEnabled) {
-      AppService.requestCount.add(1, { operation: 'getHello' });
-    }
+    // 🛠 Fix: Get attributes and events properly
+    const getAttributes = (span: any) => (span?.attributes ? JSON.stringify(span.attributes, null, 2) : '{}');
+    const getEvents = (span: any) => (span?.events ? JSON.stringify(span.events, null, 2) : '[]');
 
-    return 'Goodbye Cruel World!';
+    // ✅ Generate Pretty HTML response
+    const responseHTML = `
+        <html>
+        <head>
+            <title>Trace Details</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+                .trace-container { border: 1px solid #ccc; padding: 15px; border-radius: 5px; background: white; }
+                .trace-title { font-weight: bold; font-size: 22px; color: #333; }
+                .trace-section { margin-bottom: 10px; }
+                .trace-key { font-weight: bold; color: #007bff; }
+                .trace-json { font-family: monospace; background: #eef; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+            </style>
+        </head>
+        <body>
+            <div class="trace-container">
+                <div class="trace-title">OpenTelemetry Trace Details</div>
+                <div class="trace-section">
+                    <span class="trace-key">Trace ID:</span> ${activeSpan.spanContext().traceId}
+                </div>
+                <div class="trace-section">
+                    <span class="trace-key">Span ID:</span> ${activeSpan.spanContext().spanId}
+                </div>
+                <div class="trace-section">
+                    <span class="trace-key">Attributes:</span> 
+                    <pre class="trace-json">${getAttributes(activeSpan)}</pre>
+                </div>
+                <div class="trace-section">
+                    <span class="trace-key">Events:</span> 
+                    <pre class="trace-json">${getEvents(activeSpan)}</pre>
+                </div>
+                <div class="trace-section">
+                    <span class="trace-key">Child Span:</span>
+                    <pre class="trace-json">
+{
+  "spanId": "${childSpan.spanContext().spanId}",
+  "attributes": ${getAttributes(childSpan)},
+  "events": ${getEvents(childSpan)}
+}
+                    </pre>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    activeSpan.end(); // End the active span
+    return responseHTML;
+
   }
 }
 

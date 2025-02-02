@@ -1,0 +1,26 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  debug: {} # Debugging logs
+  otlp:
+    endpoint: "tempo.monitoring.svc.cluster.local:4317"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

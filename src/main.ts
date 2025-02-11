@@ -1,22 +1,24 @@
-import { initializeOpenTelemetry } from './otel-config'; // ✅ Import OTEL initialization
-
+import { initializeOpenTelemetry } from './otel-config';
 import { NestInstrumentation } from '@opentelemetry/instrumentation-nestjs-core';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { useWinston, usePino, initializeLoggers, winstonLogger, pinoLogger } from './logger.config';
+import { useWinston, usePino, initializeLoggers, log } from './logger.config';
 import * as fs from 'fs';
 
+// Initialize NestJS instrumentation BEFORE other imports
+const nestInstrumentation = new NestInstrumentation();
+nestInstrumentation.enable();
+
+/**
+ * Function to detect runtime environment (ECS, Kubernetes, etc.).
+ */
 function detectRuntimeEnvironment(): string {
-  // Detect ECS (Amazon Elastic Container Service)
   if (process.env.ECS_CONTAINER_METADATA_URI || process.env.ECS_CONTAINER_METADATA_URI_V4) {
     return 'ECS';
   }
-
-  // Detect Kubernetes (K8s)
   if (fs.existsSync('/var/run/secrets/kubernetes.io/serviceaccount/token')) {
     return 'Kubernetes';
   }
-
   return 'Unknown';
 }
 
@@ -24,8 +26,8 @@ async function bootstrap() {
 
   // Initialize OpenTelemetry
   await initializeOpenTelemetry();
-  
-  // Initialize Lumigo
+
+  // Initialize Lumigo if enabled
   if (process.env.LUMIGO_MANUAL_INIT === 'true') {
     const lumigo = await import('@lumigo/opentelemetry');
     await lumigo.init;
@@ -33,36 +35,18 @@ async function bootstrap() {
 
   // Initialize loggers after Lumigo is set up
   await initializeLoggers();
-  if (useWinston && winstonLogger) {
-    winstonLogger.info('NestJS application is running (Winston)');
-  }
-  if (usePino && pinoLogger) {
-    pinoLogger.info('NestJS application is running (Pino)');
-  }
 
-  // Initialize NestJS instrumentation
-  const nestInstrumentation = new NestInstrumentation();
-  nestInstrumentation.enable();
+  // Log application startup
+  log.info('NestJS application is running');
 
-  // Log environment variables
+  // Log environment variables with user context
   const envVars = JSON.stringify(process.env, null, 2);
-  if (useWinston && winstonLogger) {
-    winstonLogger.info('Environment Variables on Startup:', { envVars });
-  }
-  if (usePino && pinoLogger) {
-    pinoLogger.info('Environment Variables on Startup:', { envVars });
-  }
+  log.info(`Environment Variables on Startup: ${envVars}`);
 
-  // Detect runtime environment
+  // Detect runtime environment and log it
   const runtimeEnv = detectRuntimeEnvironment();
-  if (useWinston && winstonLogger) {
-    winstonLogger.info(`Running in ${runtimeEnv} environment (Winston)`);
-    winstonLogger.info(`OTLP Exporter Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'Not Set'}`);
-  }
-  if (usePino && pinoLogger) {
-    pinoLogger.info(`Running in ${runtimeEnv} environment (Pino)`);
-    pinoLogger.info(`OTLP Exporter Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'Not Set'}`);
-  }
+  log.info(`Running in ${runtimeEnv} environment`);
+  log.info(`OTLP Exporter Endpoint: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'Not Set'}`);
 
   // Create the NestJS application
   const app = await NestFactory.create(AppModule);

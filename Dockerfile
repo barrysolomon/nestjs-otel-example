@@ -1,12 +1,12 @@
 # Use official Node.js image as a base
-FROM node:18-alpine
+FROM node:20
 
 # Create app directory
 WORKDIR /usr/src/app
 
 # Install app dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy project files
 COPY . .

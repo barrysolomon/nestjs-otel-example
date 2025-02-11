@@ -2,23 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 import { trace, context } from '@opentelemetry/api';
-import { winstonLogger, pinoLogger } from './logger.config';
-import { MeterProvider, PeriodicExportingMetricReader, PushMetricExporter } from '@opentelemetry/sdk-metrics';
+import { log } from './logger.config';
+import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import axios from 'axios';
-
-const DEBUG_METRICS_ENDPOINT = 'http://localhost:3000/debug/metrics';
 
 @Injectable()
 export class AppService {
-
-  private otelAvailable = false;
-  public static metricsEnabled = false;
-  private maxRetries = 5;
-  private baseRetryDelay = 1000;
-  private metricReader: PeriodicExportingMetricReader | null = null;
-  private isRetrying = false; // ✅ Prevent multiple retries
-  private maxRetriesReached = false; // ✅ Stop retries permanently
+  public static metricFailures = 0;
+  public static maxMetricFailures = 5;
+  public static monitoringInterval = 60000; // Check every 60 seconds
+  public static lastSuccessfulExport = Date.now();
+  public static metricsEnabled = true;
 
   public static meterProvider = new MeterProvider();
   private static meter = AppService.meterProvider.getMeter('nestjs-app');
@@ -27,139 +21,89 @@ export class AppService {
   });
 
   constructor(private readonly httpService: HttpService) {
-    this.checkOtelMetricsWithRetry();
+    this.startMetricMonitoring();
   }
 
-  private async isOtelMetricsAvailable(): Promise<boolean> {
-    try {
-      await axios.get(`${process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 'http://localhost:4318'}/v1/metrics`);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
+  /**
+   * Monitor metric exports and detect failures.
+   */
+  private startMetricMonitoring() {
+    setInterval(() => {
+      if (!AppService.metricsEnabled) return;
 
-  private async checkOtelMetricsWithRetry(attempt = 1) {
-    if (this.isRetrying || this.maxRetriesReached) return; // ✅ Ensure only one retry runs
-    this.isRetrying = true;
+      const elapsedTime = Date.now() - AppService.lastSuccessfulExport;
 
-    if (attempt > this.maxRetries) {
-      this.disableMetricsCollection();
-      this.maxRetriesReached = true; // ✅ Stop further retries
-      return;
-    }
-
-    const available = await this.isOtelMetricsAvailable();
-    if (available) {
-      this.otelAvailable = true;
-      AppService.metricsEnabled = true;
-      this.isRetrying = false; // ✅ Reset retry flag
-      this.maxRetriesReached = false; // ✅ Allow future retries if needed
-      if (winstonLogger) winstonLogger.info(`✅ OTEL Metrics available (Attempt ${attempt}).`);
-      if (pinoLogger) pinoLogger.info(`✅ OTEL Metrics available (Attempt ${attempt}).`);
-    } else {
-      this.otelAvailable = false;
-      AppService.metricsEnabled = false;
-
-      if (attempt === this.maxRetries) {
+      if (AppService.metricFailures >= AppService.maxMetricFailures) {
+        this.logError(`🚨 Metrics are NOT being consumed! ${AppService.metricFailures} failures detected.`);
         this.disableMetricsCollection();
-        return;
+      } else if (elapsedTime > AppService.monitoringInterval) {
+        log.warn(`⚠️ No successful metric exports detected in the last ${elapsedTime / 1000}s.`);
       }
-
-      const delay = this.baseRetryDelay * Math.pow(2, attempt);
-      this.logError(`⚠️ OTEL Metrics unavailable. Retrying in ${delay / 1000}s (Attempt ${attempt}/${this.maxRetries})`);
-
-      setTimeout(() => {
-        this.isRetrying = false; // ✅ Reset retry flag before next retry
-        this.checkOtelMetricsWithRetry(attempt + 1);
-      }, delay);
-    }
+    }, AppService.monitoringInterval);
   }
 
-  private disableMetricsCollection() {
-    if (this.maxRetriesReached) return; // ✅ Prevent duplicate shutdown calls
-
-    AppService.metricsEnabled = false;
-    this.otelAvailable = false;
-    this.maxRetriesReached = true; // ✅ Ensure retries stop permanently
-    this.logError('❌ OTEL Metrics unavailable after retries. Stopping metrics collection.');
-
-    if (this.metricReader) {
-      this.metricReader.shutdown().then(() => {
-        if (winstonLogger) winstonLogger.info('📉 Metrics collector stopped.');
-        if (pinoLogger) pinoLogger.info('📉 Metrics collector stopped.');
-      });
-      this.metricReader = null;
-    }
-
-    this.createErrorEvent('otel_metrics_unavailable', 'OpenTelemetry Metrics Disabled');
-  }
-
-  private logError(message: string) {
-    if (winstonLogger) winstonLogger.error(message);
-    if (pinoLogger) pinoLogger.error(message);
-  }
-
-  private createErrorEvent(errorType: string, message: string) {
-    const activeSpan = trace.getActiveSpan();
-    if (activeSpan) {
-      activeSpan.addEvent('Error Event', { 'error.type': errorType, 'error.message': message });
-    }
-  }
-
-  public async sendMetricsToDebugEndpoint(failedMetrics: any) {
+  /**
+   * Increment custom request counter.
+   */
+  public recordRequest() {
     if (!AppService.metricsEnabled) return;
-    try {
-      await lastValueFrom(this.httpService.post(DEBUG_METRICS_ENDPOINT, { failedMetrics }));
-      if (winstonLogger) winstonLogger.info('📤 Sent failed metrics to debug endpoint');
-      if (pinoLogger) pinoLogger.info('📤 Sent failed metrics to debug endpoint');
-    } catch (error) {
-      this.logError(`❌ Failed to send metrics to debug endpoint: ${error.message}`);
-    }
+    AppService.requestCount.add(1);
+  }
+
+  /**
+   * Disable metric collection after persistent failures.
+   */
+  private disableMetricsCollection() {
+    if (!AppService.metricsEnabled) return;
+    AppService.metricsEnabled = false;
+    log.error('❌ Persistent metric failures detected. Stopping metrics collection.');
+  }
+
+  /**
+   * Log errors to both Winston and Pino.
+   */
+  private logError(message: string) {
+    log?.error(message);
   }
 
   getHello(): string {
 
-    if (winstonLogger) winstonLogger.info('getHello() called by Winston');
-    if (pinoLogger) pinoLogger.info('getHello() called by Pino');
-
+    log.info('getHello() called');
+  
     const tracer = trace.getTracer('default');
     let activeSpan = trace.getActiveSpan();
-
+  
     // 🚨 If no active span exists, create a new one manually
     if (!activeSpan) {
-      if (winstonLogger) winstonLogger.warn('⚠️ No active span detected! Creating a new root span.');
-      if (pinoLogger) pinoLogger.warn('⚠️ No active span detected! Creating a new root span.');
-
+      log.warn('⚠️ No active span detected! Creating a new root span.');
       activeSpan = tracer.startSpan('rootSpan-manual', {}, context.active());
       context.with(trace.setSpan(context.active(), activeSpan), () => {
         activeSpan?.setAttribute('auto-generated', 'true');
       });
     }
-
+  
     if (activeSpan) {
-
-      if (winstonLogger) winstonLogger.info('activeSpan ' + activeSpan);
-      if (pinoLogger) pinoLogger.info('activeSpan ' + activeSpan);
-
+  
+      log.info('activeSpan ' + activeSpan);
+  
       activeSpan.setAttribute('custom-tag', 'tag-value');
       activeSpan.setAttribute('operation', 'getHello');
       activeSpan.setAttribute('response', 'Goodbye Cruel World!');
-
+  
       activeSpan.setAttribute('lumigo.execution_tags.execTag1', 'foo');
       activeSpan.setAttribute('lumigo.execution_tags.execTag2', 'bar');
-
+  
     }
-
+  
     const childSpan = tracer.startSpan('childSpan-example', {}, context.active());
     childSpan.setAttribute('processing-type', 'simple-text-return');
     childSpan.addEvent('CustomEvent: Start returning message');
     childSpan.end();
-
+  
     // 🛠 Fix: Get attributes and events properly
     const getAttributes = (span: any) => (span?.attributes ? JSON.stringify(span.attributes, null, 2) : '{}');
     const getEvents = (span: any) => (span?.events ? JSON.stringify(span.events, null, 2) : '[]');
-
+  
     // ✅ Generate Pretty HTML response
     const responseHTML = `
         <html>
@@ -194,52 +138,54 @@ export class AppService {
                 <div class="trace-section">
                     <span class="trace-key">Child Span:</span>
                     <pre class="trace-json">
-{
+  {
   "spanId": "${childSpan.spanContext().spanId}",
   "attributes": ${getAttributes(childSpan)},
   "events": ${getEvents(childSpan)}
-}
+  }
                     </pre>
                 </div>
             </div>
         </body>
         </html>
     `;
-
+  
     activeSpan.end(); // End the active span
     return responseHTML;
+  
+  }
 
+}
+
+// ✅ Custom Metric Reader to Track Failures
+class MonitoringMetricReader extends PeriodicExportingMetricReader {
+  async _export(metrics: any) {
+    return new Promise((resolve) => {
+      metricExporter.export(metrics, (result) => {
+        if (result.code !== 0) {
+          AppService.metricFailures++;
+          log.error(`❌ Metric export failed (${AppService.metricFailures}/${AppService.maxMetricFailures}).`);
+        } else {
+          AppService.metricFailures = 0;
+          AppService.lastSuccessfulExport = Date.now();
+          log.info('✅ Metrics successfully exported.');
+        }
+        resolve(result);
+      });
+    });
   }
 }
 
-// ✅ Create OTEL metric exporter
+// ✅ OTEL Metric Exporter with Failure Tracking
 const metricExporter = new OTLPMetricExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 'http://localhost:4318/v1/metrics',
+  url: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || "https://ga-otlp.lumigo-tracer-edge.golumigo.com/v1/metrics",
   headers: { Authorization: `LumigoToken ${process.env.LUMIGO_TRACER_TOKEN}` },
 });
 
-// ✅ Wrapped OTEL exporter with error handling (Stops Metrics Only)
-const wrappedExporter: PushMetricExporter = {
-  async export(metrics: any, resultCallback: (result: any) => void) {
-    const appService = new AppService(new HttpService());
-    if (!AppService.metricsEnabled) {
-      console.warn('⚠️ OTEL Metrics disabled. Skipping export.');
-      return;
-    }
-    metricExporter.export(metrics, resultCallback);
-  },
-  async shutdown() {
-    return metricExporter.shutdown();
-  },
-  async forceFlush() {
-    return Promise.resolve();
-  }
-};
+// ✅ Attach custom metric reader with monitoring
+const metricReader = new MonitoringMetricReader({
+  exporter: metricExporter,
+  exportIntervalMillis: 60000,
+});
 
-// ✅ Stop Metrics but Keep Tracing Active
-// const metricReader = new PeriodicExportingMetricReader({
-//   exporter: wrappedExporter,
-//   exportIntervalMillis: 60000,
-// });
-
-// AppService.meterProvider.addMetricReader(metricReader);
+AppService.meterProvider.addMetricReader(metricReader);

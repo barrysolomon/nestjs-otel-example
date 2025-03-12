@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,11 +42,23 @@ data:
       otlp:
         protocols:
           grpc:
-            endpoint: "0.0.0.0:4317"  # ✅ This ensures it listens on all network interfaces
+            endpoint: "0.0.0.0:4317"  # ✅ Ensure it listens on all interfaces
+          http:
+            endpoint: "0.0.0.0:4318"  # ✅ Add HTTP support for better compatibility
 
     processors:
+      batch:  # ✅ Adds batching for improved performance
+      memory_limiter:  # ✅ Helps avoid OOM errors
+        limit_mib: 512
+        spike_limit_mib: 128
+        check_interval: 5s
 
     exporters:
+      otlphttp:
+        endpoint: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
+        headers:
+          Authorization: "LumigoToken <LUMIGO-TOKEN>"
+
       debug:
         verbosity: detailed
 
@@ -53,16 +66,16 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: []
-          exporters: [debug]
+          processors: [batch]
+          exporters: [otlphttp, debug]  # ✅ Send traces to Lumigo & debug logs
         metrics:
           receivers: [otlp]
-          processors: []
-          exporters: [debug]
+          processors: [batch]
+          exporters: [otlphttp, debug]  # ✅ Send metrics to Lumigo & debug logs
         logs:
           receivers: [otlp]
-          processors: []
-          exporters: [debug]
+          processors: [batch]
+          exporters: [otlphttp, debug]  # ✅ Send logs to Lumigo & debug logs
 
 ---
 apiVersion: v1

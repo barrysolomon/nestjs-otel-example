@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: otel-collector
-  namespace: opentelemetry
   labels:
     app: otel-collector
 spec:
@@ -17,28 +16,59 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:latest
+          image: otel/opentelemetry-collector:latest
           ports:
-            - name: otlp
-              containerPort: 4317 # gRPC
-            - name: otlp-http
-              containerPort: 4318 # HTTP
-          args:
-            - "--config=/etc/otel-collector-config.yaml"
+            - containerPort: 4317 # gRPC receiver port
           volumeMounts:
-            - name: config-volume
-              mountPath: /etc/otel-collector-config.yaml
-              subPath: otel-collector-config.yaml
+            - name: otel-config
+              mountPath: /etc/otel/config.yaml
+              subPath: config.yaml
+          args:
+            - "--config=/etc/otel/config.yaml"
       volumes:
-        - name: config-volume
+        - name: otel-config
           configMap:
             name: otel-collector-config
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"  # ✅ This ensures it listens on all network interfaces
+
+    processors:
+
+    exporters:
+      debug:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: []
+          exporters: [debug]
+        metrics:
+          receivers: [otlp]
+          processors: []
+          exporters: [debug]
+        logs:
+          receivers: [otlp]
+          processors: []
+          exporters: [debug]
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: otel-collector
-  namespace: opentelemetry
 spec:
   selector:
     app: otel-collector
@@ -46,6 +76,3 @@ spec:
     - name: grpc
       port: 4317
       targetPort: 4317
-    - name: http
-      port: 4318
-      targetPort: 4318

@@ -3,6 +3,19 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: nestjs
+  labels:
+    project: nestjs-application
+    managed-by: kubernetes
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: lumigo-secret
+  namespace: nestjs
+type: Opaque
+data:
+  api-key: dF8xMzMwNjMwMzRkMjE0ZDU4YjI5ZWY=
 
 ---
 apiVersion: apps/v1
@@ -12,9 +25,16 @@ metadata:
   namespace: nestjs
   labels:
     app: nestjs-app
-
+    version: v1
+  annotations:
+    description: "NestJS application deployment"
 spec:
-  replicas: 1  # Increased replicas for redundancy
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
   selector:
     matchLabels:
       app: nestjs-app
@@ -22,66 +42,126 @@ spec:
     metadata:
       labels:
         app: nestjs-app
-
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3000"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - nestjs-app
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: nestjs-app
           image: barrysolomon/nest-opentelemetry-example:latest
-          imagePullPolicy: Always  # Ensures the latest image is pulled every deployment
+          imagePullPolicy: Always
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
               protocol: TCP
 
           env:
             - name: PORT
               value: "3000"
+            - name: NODE_ENV
+              value: "production"
             - name: MY_POD_IP
               valueFrom:
                 fieldRef:
-                  fieldPath: status.podIP
+                  fieldPath: status.podIP              
+
+            # OpenTelemetry Configuration
+
+            - name: OTEL_LOG_LEVEL
+              value: "info"
+
+            # - name: OTEL_TRACES_EXPORTER
+            #   value: "console"
+            # - name: OTEL_METRICS_EXPORTER
+            #   value: "console"
+            # - name: OTEL_LOGS_EXPORTER
+            #   value: "console"
+
+              #value: "http://192.168.194.211:4317"
+              #value: "http://tempo.monitoring.svc.cluster.local:4317"
+              #value: "http://otel-collector.monitoring.svc.cluster.local:4317"
+              #value: "http://otel-collector.opentelemetry.svc.cluster.local:4317" # gRPC
+
+            #kubectl get secret lumigo-secret -o json | jq -r '.data | keys[]'
+            - name: LUMIGO_TRACER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: lumigo-secret
+                  key: api-key   
 
             - name: OTEL_SERVICE_NAME
               value: "NestJS-Service"   
-            - name: OTEL_LOG_LEVEL
-              value: "debug"
 
-            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
-            #   value: "http://otel-collector.monitoring.svc.cluster.local:4317"
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com/v1/logs"  
 
-            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
-            #   value: "http://otel-collector.opentelemetry.svc.cluster.local:4317" # gRPC
-          
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://tempo.monitoring.svc.cluster.local:4317"
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com/v1/traces"  
+
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              value: "Authorization=LumigoToken t_f8f7b905da964eef89261"
+
+            - name: LUMIGO_ENABLE_LOGS
+              value: "true"
+              
+            # # - name: LUMIGO_LOG_ENDPOINT
+            # #   value: "https://logs-ga.lumigo-tracer-edge.golumigo.com/api/logs?token=t_f8f7b905da964eef89261"
 
           command: ["node"]
-          args: ["dist/main.js"]
+          args: ["-r", "@lumigo/opentelemetry", "dist/main.js"]
 
           resources:
             requests:
-              cpu: "256m"
+              cpu: "250m"
               memory: "512Mi"
             limits:
               cpu: "500m"
               memory: "1Gi"
-              
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: 3000
-          #   initialDelaySeconds: 10
-          #   periodSeconds: 5
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: 3000
-          #   initialDelaySeconds: 5
-          #   periodSeconds: 3
-      # securityContext:
-      #   runAsUser: 1000
-      #   runAsGroup: 3000
-      #   fsGroup: 2000
-      # restartPolicy: Always
+
+          # Enhanced probes
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+      # Optional: Control pod placement
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: nestjs-app
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
 
 ---
 apiVersion: v1
@@ -91,6 +171,8 @@ metadata:
   namespace: nestjs
   labels:
     app: nestjs-app
+  annotations:
+    description: "Service exposing NestJS application"
 spec:
   selector:
     app: nestjs-app
@@ -98,4 +180,5 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 3000
+      name: http
   type: ClusterIP

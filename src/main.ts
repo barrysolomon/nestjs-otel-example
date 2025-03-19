@@ -27,12 +27,6 @@ async function bootstrap() {
   // Initialize OpenTelemetry
   await initializeOpenTelemetry();
 
-  // Initialize Lumigo if enabled
-  if (process.env.LUMIGO_MANUAL_INIT === 'true') {
-    const lumigo = await import('@lumigo/opentelemetry');
-    await lumigo.init;
-  }
-
   // Initialize loggers after Lumigo is set up
   await initializeLoggers();
 

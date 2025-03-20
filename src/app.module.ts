@@ -8,6 +8,13 @@ import { ExcludeRoutesMiddleware } from './exclude-routes.middleware';
 import { useWinston, usePino, pinoLogger, winstonLogger } from './logger.config';
 import { DebugController } from './debug.controller';
 import { HttpModule } from '@nestjs/axios';
+import { APP_FILTER } from '@nestjs/core';
+
+// Our services
+import { TraceService } from './services/trace.service';
+import { TemplateService } from './services/template.service';
+import { LogService } from './services/log.service';
+import { QueryParserService } from './services/query-parser.service';
 
 @Module({
   imports: [
@@ -21,9 +28,18 @@ import { HttpModule } from '@nestjs/axios';
       : []),
       HttpModule,
   ],
-  controllers: [HealthController, AppController, PhpInfoController, DebugController],
+  controllers: [
+    HealthController,
+    AppController,
+    PhpInfoController,
+    DebugController,
+  ],
   providers: [
     AppService,
+    TraceService,
+    TemplateService,
+    LogService,
+    QueryParserService,
     ...(usePino && pinoLogger
       ? [
           {

@@ -1,4 +1,4 @@
-import pino from 'pino';
+import { pino } from 'pino';
 import * as winston from 'winston';
 
 // Flags to toggle loggers
@@ -26,10 +26,16 @@ async function getCurrentUser() {
 export const initializeLoggers = async () => {
   if (usePino) {
     pinoLogger = pino({
-      level: 'info',
+      level: process.env.LOG_LEVEL || 'info',
       transport: {
         target: 'pino-pretty',
-        options: { colorize: true },
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+        },
+      },
+      base: {
+        service: 'nestjs-app',
       },
     });
   }

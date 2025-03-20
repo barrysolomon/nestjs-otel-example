@@ -1,6 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  labels:
+    app: otel-collector
   name: otel-collector
   namespace: observability
 spec:
@@ -14,18 +16,24 @@ spec:
         app: otel-collector
     spec:
       containers:
-      - name: otel-collector
-        image: otel/opentelemetry-collector:latest
-        args:
+      - args:
         - --config=/etc/otel/config.yaml
         - --set=service.telemetry.logs.level=debug
+        image: otel/opentelemetry-collector:latest
+        name: otel-collector
         ports:
         - containerPort: 4317
           protocol: TCP
+          name: otlp-grpc
         - containerPort: 4318
           protocol: TCP
+          name: otlp-http
+        - containerPort: 8888
+          protocol: TCP
+          name: metrics
         - containerPort: 8889
           protocol: TCP
+          name: prom-export
         resources:
           limits:
             cpu: 500m
@@ -34,10 +42,10 @@ spec:
             cpu: 200m
             memory: 1Gi
         volumeMounts:
-        - name: otel-config
-          mountPath: /etc/otel/config.yaml
+        - mountPath: /etc/otel/config.yaml
+          name: otel-config
           subPath: config.yaml
       volumes:
-      - name: otel-config
-        configMap:
-          name: otel-collector-config 
+      - configMap:
+          name: otel-collector-config
+        name: otel-config 

@@ -59,6 +59,11 @@ data:
         sampling_thereafter: 1
       prometheus:
         endpoint: "0.0.0.0:8889"
+        namespace: "otel"
+        const_labels:
+          label1: value1
+        send_timestamps: true
+        metric_expiration: 180m
 
     service:
       telemetry:
@@ -66,6 +71,9 @@ data:
           level: "debug"
           development: true
           encoding: "console"
+        metrics:
+          level: "detailed"
+          address: "0.0.0.0:8888"
       pipelines:
         traces:
           receivers: [otlp]

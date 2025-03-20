@@ -120,23 +120,3 @@ data:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [debug]
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: otel-collector
-  namespace: observability
-spec:
-  type: LoadBalancer
-  ports:
-    - name: otlp-http
-      port: 4318
-      protocol: TCP
-      targetPort: 4318
-    - name: prometheus
-      port: 8889
-      protocol: TCP
-      targetPort: 8889
-  selector:
-    app: otel-collector

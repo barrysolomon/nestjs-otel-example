@@ -1,333 +1,139 @@
-## NestJS Service with OpenTelemetry and Lumigo Integration
+# NestJS OpenTelemetry Example
 
-## 1. Install Required Dependencies
-
-Install the required packages for OpenTelemetry and Lumigo.
-
-```bash
-sudo npm install @lumigo/opentelemetry @opentelemetry/api @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-metrics-otlp-grpc
-```
-npm install @opentelemetry/sdk-logs @opentelemetry/api-logs @opentelemetry/otlp-exporter-base
-sudo npm install @opentelemetry/exporter-metrics-otlp-http
-sudo npm install @opentelemetry/exporter-metrics-otlp-grpc
-
-Install the other required packages.
-
-```bash
-sudo npm install @nestjs/common winston pino @nestjs/axios
-```
-
----
-
-## 2. Local Development and Testing
-
-### Build and Run Locally
-
-```bash
-sudo npm install
-npm run build
-
-export PORT=3001
-npm run start:dev
-```
-
-### Verify Local Server Health
-
-```bash
-curl http://localhost:3001/debug/health
-curl http://localhost:3001/debug/env
-curl http://localhost:3001/debug/opentelemetry
-```
-
----
-
-## 3. Deploy on Kubernetes
-
-### Create Lumigo Secret
-
-```bash
-kubectl create secret generic lumigo-secret \
-  --from-literal=api-key='<LUMIGO_API_KEY>' \
-  --namespace=default
-```
-
-### Deploy the NestJS App
-
-```bash
-kubectl apply -f k8s/nestjs-app.yaml -n nestjs
-kubectl rollout restart deployment nestjs-app
-
-kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
-```
-
-### Key Considerations for Kubernetes Deployment
-
-Ensure your Kubernetes deployment includes the following environment variables and command settings:
-
-```yaml
-env:
-  - name: PORT
-    value: "3000"
-  - name: MY_POD_IP
-    valueFrom:
-      fieldRef:
-        fieldPath: status.podIP
-  - name: LUMIGO_MANUAL_INIT
-    value: "true"
-  - name: LUMIGO_TRACER_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: lumigo-secret
-        key: api-key
-  - name: LUMIGO_ENABLE_LOGS
-    value: "true"
-  - name: LUMIGO_LOG_ENDPOINT
-    value: "https://logs-ga.lumigo-tracer-edge.golumigo.com/api/logs?token=<LUMIGO TRACER TOKEN>"
-  - name: OTEL_SERVICE_NAME
-    value: "SimpleNestedService"
-  - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
-
-command: ["node"]
-args: ["-r", "@lumigo/opentelemetry", "dist/main.js"]
-```
-
-### Verify k8s NestJS App Health
-
-```bash
-curl http://localhost:3001/debug/health
-curl http://localhost:3001/debug/env
-curl http://localhost:3001/debug/opentelemetry
-```
-
----
-
-## 4. Deploy on AWS ECS
-
-### Push Image to AWS ECR
-
-```bash
-aws ecr get-login-password --region <AWS_REGION> | docker login --username AWS --password-stdin <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com
-aws ecr create-repository --repository-name nest-opentelemetry-example --region <AWS_REGION>
-
-docker build --platform linux/amd64 -t nest-opentelemetry-example .
-docker tag nest-opentelemetry-example:latest <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/nest-opentelemetry-example:latest
-docker push <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/nest-opentelemetry-example:latest
-```
-
-### Register and Create ECS Service
-
-1. Create a new ECS service with your task definition or update an existing service.
-2. Ensure the service is running with the proper IAM role that allows ECS to pull the image and send data to Lumigo.
-
-```bash
-aws ecs register-task-definition --cli-input-json file://ecs-task-definition.json
-
-aws ecs create-service \
-  --cluster nest-js-ecs-cluster \
-  --service-name nest-js-service \
-  --task-definition nest-js-task-definition \
-  --desired-count 1 \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[<SUBNET_ID>],securityGroups=[<SECURITY_GROUP_ID>],assignPublicIp='ENABLED'}"
-```
-
-### Update ECS Service
-
-```bash
-aws ecs update-service \
-  --region <AWS_REGION> \
-  --cluster nest-js-ecs-cluster \
-  --service nest-js-service \
-  --task-definition nest-js-task-definition \
-  --force-new-deployment
-```
-
-### Key Considerations for ECS Task Definition
-
-When creating an ECS task, make sure to include the following configurations:
-
-```json
-"command": [
-    "node",
-    "-r",
-    "@lumigo/opentelemetry",
-    "dist/main"
-],
-"environment": [
-    {"name": "OTEL_SERVICE_NAME", "value": "NestJS-ECS"},
-    {"name": "LUMIGO_TRACER_TOKEN", "value": "<LUMIGO_TRACER_TOKEN>"},
-    {"name": "LUMIGO_LOG_ENDPOINT", "value": "<LUMIGO_TRACER_TOKEN>"},
-    {"name": "LUMIGO_MANUAL_INIT", "value": "true"},
-    {"name": "LUMIGO_ENABLE_LOGS", "value": "true"},
-    {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "https://ga-otlp.lumigo-tracer-edge.golumigo.com"}
-]
-```
-
-### Verify ECS Deployment
-
-After deploying the service on ECS:
-- Call the service's API to see if spans are being reported to Lumigo.
-- Verify the `activeSpan` is being captured and custom attributes are visible in the traces on Lumigo.
-
----
-
-This setup ensures that OpenTelemetry is properly initialized with Lumigo in a NestJS environment running on both Kubernetes and AWS ECS. Let me know if you need further clarifications or adjustments!
-
-# OpenTelemetry Collector Monitoring Setup
-
-This repository contains the configuration for monitoring an OpenTelemetry Collector using Prometheus and Grafana in a Kubernetes environment.
-
-## Architecture
-
-The monitoring stack consists of:
-- OpenTelemetry Collector: Collects and processes telemetry data
-- Prometheus: Scrapes and stores metrics from the OpenTelemetry Collector
-- Grafana: Visualizes the metrics through dashboards
+This example demonstrates how to set up OpenTelemetry instrumentation in a NestJS application, with metrics, traces, and logs being collected and visualized in Grafana.
 
 ## Prerequisites
 
 - Kubernetes cluster
-- `kubectl` configured to access your cluster
-- Helm (for deploying the monitoring stack)
+- kubectl configured to use your cluster
+- Helm installed
 
-## Components
+## Installation
 
-### OpenTelemetry Collector
-
-The OpenTelemetry Collector is configured to:
-- Receive traces via OTLP (gRPC and HTTP)
-- Export traces to a debug exporter
-- Expose internal metrics on port 8889
-
-### Prometheus
-
-Prometheus is configured to:
-- Scrape metrics from the OpenTelemetry Collector
-- Store metrics for visualization
-- Expose metrics on port 9090
-
-### Grafana
-
-Grafana is configured to:
-- Display OpenTelemetry Collector metrics
-- Auto-load dashboards from ConfigMaps
-- Expose the UI on port 3000
-
-## Accessing the Monitoring Stack
-
-### Port Forwarding
-
-To access the various components, you'll need to set up port forwarding:
-
-1. OpenTelemetry Collector metrics:
+1. Install the OpenTelemetry Operator:
 ```bash
-kubectl port-forward -n observability svc/otel-collector 8889:8889
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo update
+helm install opentelemetry-operator open-telemetry/opentelemetry-operator -n observability --create-namespace
 ```
 
-2. Prometheus UI:
+2. Install the observability stack (Prometheus, Grafana, Loki):
 ```bash
-kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install prometheus prometheus-community/kube-prometheus-stack -n observability
 ```
 
-3. Grafana UI:
+3. Deploy the OpenTelemetry Collector:
+```bash
+kubectl apply -f otel-collector.yaml
+```
+
+4. Deploy the example application:
+```bash
+kubectl apply -f app-deployment.yaml
+```
+
+## Accessing the Dashboards
+
+1. Port-forward the Grafana service:
 ```bash
 kubectl port-forward -n observability svc/prometheus-grafana 3000:80
 ```
 
-### Accessing the UIs
+2. Access Grafana at http://localhost:3000
+   - Default credentials: admin / prom-operator
 
-1. Grafana:
-   - URL: http://localhost:3000
-   - Default credentials:
-     - Username: admin
-     - Password: prom-operator
+## Verifying Dashboard Functionality
 
-2. Prometheus:
-   - URL: http://localhost:9090
+### 1. Metrics Dashboard
 
-3. OpenTelemetry Collector metrics:
-   - URL: http://localhost:8889/metrics
+1. Navigate to the Metrics dashboard in Grafana
+2. Verify that you see metrics from your NestJS application:
+   - HTTP request counts
+   - Response times
+   - Error rates
+   - Custom metrics (if configured)
 
-## Dashboard Configuration
+### 2. Logs Dashboard
 
-The OpenTelemetry Collector dashboard is configured via a ConfigMap with the following metrics:
+1. Navigate to the Logs dashboard in Grafana
+2. Select the Loki datasource
+3. Use the following query to see your application logs:
+```
+{service_name="nestjs-app"}
+```
 
-1. Spans Received per Second
-   - Metric: `rate(otelcol_receiver_accepted_spans[5m])`
-   - Shows the rate of spans being received by the collector
+### 3. Traces Dashboard
 
-2. Memory Usage
-   - Metric: `otelcol_process_memory_rss`
-   - Displays the RSS memory usage of the collector
+1. Navigate to the Traces dashboard in Grafana
+2. Verify that you see:
+   - Service map showing your application
+   - Trace spans for HTTP requests
+   - Latency distributions
+   - Error rates
 
-3. Average Batch Size
-   - Metric: `rate(otelcol_processor_batch_batch_send_size_sum[5m]) / rate(otelcol_processor_batch_batch_send_size_count[5m])`
-   - Shows the average number of spans per batch
+## Testing Log Collection
 
-4. Spans Exported per Second
-   - Metric: `rate(otelcol_exporter_sent_spans[5m])`
-   - Displays the rate of spans being exported
+A test script is included to help verify that logs are being properly collected and stored:
 
-5. Failed Span Exports per Second
-   - Metric: `rate(otelcol_exporter_send_failed_spans[5m])`
-   - Shows the rate of failed span exports
+```bash
+# Make the script executable
+chmod +x test-logs.sh
 
-6. Batch Timeout Triggers per Second
-   - Metric: `rate(otelcol_processor_batch_timeout_trigger_send[5m])`
-   - Displays the rate of batch timeouts
+# Run the test
+./test-logs.sh
+```
 
-7. HTTP Server Average Response Time
-   - Metric: `rate(http_server_duration_sum[5m]) / rate(http_server_duration_count[5m])`
-   - Shows the average HTTP response time
-
-8. HTTP Server Request Size per Second
-   - Metric: `rate(http_server_request_size[5m])`
-   - Displays the rate of HTTP request sizes
+This script will:
+1. Send sample INFO and ERROR logs to the OpenTelemetry Collector
+2. Verify the logs are stored in Loki
+3. Show available labels and query the test logs
 
 ## Troubleshooting
 
-### Dashboard Not Appearing
+If you encounter issues with the dashboards:
 
-If the dashboard is not appearing in Grafana:
-
-1. Check if the ConfigMap has the correct label:
+1. Check the OpenTelemetry Collector logs:
 ```bash
-kubectl get configmap -n observability otel-collector-dashboard -o yaml
+kubectl logs -n observability -l app=otel-collector
 ```
 
-2. Verify the Grafana pod is running:
+2. Verify Prometheus is scraping metrics:
 ```bash
-kubectl get pods -n observability -l app.kubernetes.io/name=grafana
+kubectl port-forward -n observability svc/prometheus-server 9090:9090
+# Then visit http://localhost:9090 and check targets
 ```
 
-3. Check Grafana logs:
+3. Check Grafana datasource configuration:
+```bash
+kubectl get configmap -n observability -l grafana_datasource=1
+```
+
+4. Verify Grafana pod logs:
 ```bash
 kubectl logs -n observability -l app.kubernetes.io/name=grafana
 ```
 
-### Port Forwarding Issues
+## Common Issues and Solutions
 
-If you encounter port forwarding issues:
+1. No data visible in Grafana:
+   - Verify the datasource configuration is correct
+   - Check that Prometheus is successfully scraping metrics
+   - Ensure the OpenTelemetry Collector is running and configured correctly
 
-1. Check if the ports are already in use:
-```bash
-lsof -i :3000
-lsof -i :9090
-lsof -i :8889
-```
+2. Logs not appearing:
+   - Verify Loki is running and accessible
+   - Check the OpenTelemetry Collector's Loki exporter configuration
+   - Ensure your application is sending logs to the collector
 
-2. Kill any existing port-forward processes:
-```bash
-pkill -f "kubectl port-forward"
-```
+3. Metrics not showing up:
+   - Verify Prometheus is configured to scrape the OpenTelemetry Collector
+   - Check that your application is properly instrumented
+   - Ensure the metrics endpoints are accessible
 
-3. Verify the services are running:
-```bash
-kubectl get svc -n observability
-```
+## Additional Resources
 
-## Contributing
-
-Feel free to submit issues and enhancement requests!
-
+- [OpenTelemetry Documentation](https://opentelemetry.io/docs/)
+- [NestJS Documentation](https://docs.nestjs.com/)
+- [Grafana Documentation](https://grafana.com/docs/) 

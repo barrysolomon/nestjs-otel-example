@@ -28,6 +28,7 @@
     "@opentelemetry/api-logs": "^0.200.0",
     "@opentelemetry/auto-instrumentations-node": "^0.41.1",
     "@opentelemetry/exporter-logs-otlp-http": "^0.41.2",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.200.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.41.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.41.1",
     "@opentelemetry/resources": "^1.15.1",

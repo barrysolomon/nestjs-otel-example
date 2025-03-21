@@ -177,6 +177,11 @@ k apply -f k8s/nestjs-app.yaml  -n nestjs
 # NestJS Application (access your app at http://localhost:3001)
 kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
 
+
+for i in {1..10}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; sleep 1; done
+
+
+
 --------------
 OTEL COLLECTOR
 --------------
@@ -190,6 +195,7 @@ k apply -f k8s/otel-collector-config.yaml   -n observability
 k apply -f k8s/otel-collector-deployment.yaml   -n observability
 k apply -f k8s/otel-collector-service.yaml   -n observability
 
+
 --------------
 PROMETHEUS
 --------------
@@ -198,6 +204,10 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 kubectl create namespace observability 2>/dev/null || true && helm install prometheus prometheus-community/kube-prometheus-stack --namespace observability --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
 
 kubectl get crd | grep servicemonitors
+
+# Prometheus (query metrics at http://localhost:9090)
+kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
+
 
 --------------
 OTEL collector service monitor
@@ -265,15 +275,6 @@ kubectl port-forward -n observability svc/otel-collector 8888:8888
 Now let's check if we can access the metrics endpoint:
 curl -s http://localhost:8888/metrics | head -20
 
-
-
-kubectl exec -it nestjs-app-7dcdc77b5c-892lz -- curl -v http://otel-collector.default.svc.cluster.local:4317/v1/traces
-
-kubectl exec -n default -it otel-collector-7c46d7797f-p2z9g -- netstat -tulnp
-
-
-
-pkill -f "kubectl port-forward" && k port-forward -n observability svc/prometheus-grafana 3001:80                                        
 
 
 curl -X POST http://198.19.249.2:4318/v1/traces -H "Content-Type: application/json" -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"test-service"}}]},"scopeSpans":[{"scope":{"name":"test-scope"},"spans":[{"traceId":"4bf92f3577b34da6a3ce929d0e0e4736","spanId":"00f067aa0ba902b7","parentSpanId":"","name":"test-span","kind":1,"startTimeUnixNano":"1742333472000000000","endTimeUnixNano":"1742333473000000000","attributes":[{"key":"test.attribute","value":{"stringValue":"test-value"}}],"status":{"code":0}}]}]}]}'

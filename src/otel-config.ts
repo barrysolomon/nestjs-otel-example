@@ -7,9 +7,13 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { LoggerProvider, SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { logs } from '@opentelemetry/api-logs';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader, MeterProvider } from '@opentelemetry/sdk-metrics';
+import { metrics } from '@opentelemetry/api';
 
 let sdk: NodeSDK;
 let loggerProvider: LoggerProvider;
+let meterProvider: MeterProvider;
 
 export async function initializeOpenTelemetry() {
   const resource = new Resource({
@@ -32,6 +36,43 @@ export async function initializeOpenTelemetry() {
       'Content-Type': 'application/json',
     },
   });
+
+  // Get the metrics endpoint from environment variable or use default
+  const metricsUrl = (() => {
+    const endpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 'otel-collector.observability.svc.cluster.local:4318';
+    // Check if the endpoint starts with http, if not, add http://
+    if (!endpoint.startsWith('http')) {
+      return `http://${endpoint}`;
+    }
+    return endpoint;
+  })();
+
+  console.log(`Using metrics endpoint: ${metricsUrl}`);
+  
+  // Configure the metrics exporter
+  const metricExporter = new OTLPMetricExporter({
+    url: `${metricsUrl}/v1/metrics`,
+    timeoutMillis: 10000,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  // Set up metrics
+  meterProvider = new MeterProvider({
+    resource: resource,
+  });
+  
+  // Add a periodic metric reader
+  meterProvider.addMetricReader(
+    new PeriodicExportingMetricReader({
+      exporter: metricExporter,
+      exportIntervalMillis: 15000, // Export metrics every 15 seconds
+    })
+  );
+  
+  // Set the global meter provider
+  metrics.setGlobalMeterProvider(meterProvider);
 
   // Set up the logger provider
   loggerProvider = new LoggerProvider({ resource });
@@ -72,8 +113,12 @@ export async function initializeOpenTelemetry() {
   process.on('SIGTERM', () => {
     sdk
       .shutdown()
-      .then(() => console.log('Tracing terminated'))
-      .catch((error) => console.log('Error terminating tracing', error))
+      .then(() => {
+        console.log('Tracing terminated');
+        return meterProvider.shutdown();
+      })
+      .then(() => console.log('Metrics terminated'))
+      .catch((error) => console.log('Error terminating telemetry', error))
       .finally(() => process.exit(0));
   });
 }
@@ -84,4 +129,8 @@ export function getSDK(): NodeSDK {
 
 export function getLoggerProvider(): LoggerProvider {
   return loggerProvider;
+}
+
+export function getMeterProvider(): MeterProvider {
+  return meterProvider;
 }

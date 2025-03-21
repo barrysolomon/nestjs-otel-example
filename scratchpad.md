@@ -156,6 +156,8 @@ kubectl rollout restart deployment jaeger-collector -n observability
 
 
 
+
+
 ==============
 SIMPLE OTEL
 ==============
@@ -164,14 +166,77 @@ docker build -t nest-opentelemetry-example:latest .
 docker tag nest-opentelemetry-example:latest barrysolomon/nest-opentelemetry-example:latest
 docker push barrysolomon/nest-opentelemetry-example:latest
 
+--------------
+NESTJS APP
+--------------
+
+k create namespace nestjs
+k delete -f k8s/nestjs-app.yaml  -n nestjs
+k apply -f k8s/nestjs-app.yaml  -n nestjs
+
+# NestJS Application (access your app at http://localhost:3001)
+kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
+
+--------------
+OTEL COLLECTOR
+--------------
 
 k create namespace observability
 
 k delete -f k8s/otel-collector.yaml   -n observability
 k apply -f k8s/otel-collector.yaml   -n observability
 
-k delete -f k8s/nestjs-app.yaml  -n nestjs
-k apply -f k8s/nestjs-app.yaml  -n nestjs
+k apply -f k8s/otel-collector-config.yaml   -n observability
+k apply -f k8s/otel-collector-deployment.yaml   -n observability
+k apply -f k8s/otel-collector-service.yaml   -n observability
+
+--------------
+PROMETHEUS
+--------------
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && helm repo update
+kubectl create namespace observability 2>/dev/null || true && helm install prometheus prometheus-community/kube-prometheus-stack --namespace observability --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+
+kubectl get crd | grep servicemonitors
+
+--------------
+OTEL collector service monitor
+--------------
+kubectl apply -f k8s/otel-collector-servicemonitor.yaml -n observability
+
+kubectl get pods -n observability | grep otel
+
+kubectl get servicemonitor -n observability otel-collector -o yaml
+
+# Verify service has the correct port configured:
+kubectl get service -n observability otel-collector -o yaml
+
+# Verify that the metrics port is properly configured in the OTEL collector:
+## The metrics endpoint is properly configured if 0.0.0.0:8888 is in the telemetry section.
+kubectl get configmap -n observability otel-collector-config -o yaml
+
+# Verify Prometheus is detecting the OpenTelemetry collector:
+kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090 & sleep 2 && echo "Visit http://localhost:9090/targets to check if your OTEL collector is being monitored"
+
+
+--------------
+GRAFANA
+--------------
+
+k apply -f k8s/grafana-pv.yaml   -n observability
+
+k apply -f k8s/grafana-dashboard-configmap.yaml   -n observability
+
+# Grafana (access dashboards at http://localhost:3000, default credentials admin/prom-operator)
+kubectl port-forward -n observability svc/prometheus-grafana 3000:80
+
+
+
+--------------
+--------------
+--------------
+
+
 
 
 

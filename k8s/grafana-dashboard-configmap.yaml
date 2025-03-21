@@ -4,7 +4,7 @@ metadata:
   name: otel-collector-dashboard
   namespace: observability
   labels:
-    grafana_dashboard: "true"
+    grafana_dashboard: "1"
 data:
   otel-collector-dashboard.json: |
     {

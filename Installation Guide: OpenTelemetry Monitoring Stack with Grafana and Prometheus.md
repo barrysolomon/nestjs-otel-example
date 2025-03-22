@@ -1,4 +1,3 @@
-
 # Installation Guide: OpenTelemetry Monitoring Stack with Grafana and Prometheus
 
 This guide walks through installing the complete OpenTelemetry monitoring stack for Kubernetes, including validation steps.
@@ -113,7 +112,90 @@ kubectl get svc -n nestjs
 ```
 Expected: NestJS application pod running and service available.
 
-## 9. Verify End-to-End Integration
+## 9. Using the OpenTelemetry Configuration UI
+
+The application includes a web-based configuration UI that allows you to dynamically switch between different OpenTelemetry collectors without restarting the application.
+
+### Accessing the Configuration UI
+
+Access the OpenTelemetry Configuration UI by navigating to:
+
+```bash
+# If using port-forwarding
+kubectl port-forward -n nestjs svc/nestjs-app-service 3001:80
+# Then open http://localhost:3001/otel-config in your browser
+
+# If using LoadBalancer
+NESTJS_IP=$(kubectl get svc -n nestjs nestjs-app-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+# Then open http://$NESTJS_IP/otel-config in your browser
+```
+
+### Available Configuration Options
+
+The UI allows you to:
+
+1. **Choose a collector type**:
+   - Sawmills Collector (default)
+   - OpenTelemetry Collector
+   - Custom Collector (define your own endpoints)
+
+2. **Enable Test Mode**:
+   - When enabled, configuration changes are saved but the OpenTelemetry SDK is not restarted
+   - Useful for testing without affecting the actual telemetry pipeline
+
+3. **Configure Custom Endpoints** (for Custom Collector):
+   - Traces endpoint (e.g., `http://custom-collector:4318/v1/traces`)
+   - Logs endpoint (e.g., `http://custom-collector:4318/v1/logs`)
+   - Metrics endpoint (e.g., `http://custom-collector:4317/v1/metrics`)
+
+### Testing the Configuration UI
+
+1. **Using the Web UI**:
+   - Open the configuration page in your browser
+   - Switch between different collector types
+   - Check the "Current Configuration" section to see the active settings
+   - Apply changes and verify that the status message shows successful update
+
+2. **Using the API Directly**:
+   ```bash
+   # Get current configuration
+   curl http://localhost:3001/api/otel-config
+   
+   # Switch to OpenTelemetry Collector with test mode enabled
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{"collectorType":"otel","testMode":true}' \
+     http://localhost:3001/api/otel-config
+   
+   # Configure custom collector endpoints
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{
+       "collectorType":"custom",
+       "tracesEndpoint":"http://custom-collector:4318/v1/traces",
+       "logsEndpoint":"http://custom-collector:4318/v1/logs",
+       "metricsEndpoint":"http://custom-collector:4317/v1/metrics"
+     }' \
+     http://localhost:3001/api/otel-config
+   ```
+
+### Validating Configuration Changes
+
+After changing the collector configuration:
+
+1. Check the pod logs to see if the configuration was applied:
+   ```bash
+   kubectl logs -n nestjs deployment/nestjs-app
+   ```
+   Look for messages like "Test mode enabled, skipping OpenTelemetry SDK restart" or "OpenTelemetry SDK started successfully".
+
+2. Generate some telemetry by making requests to the application:
+   ```bash
+   # Make several requests to generate telemetry
+   for i in {1..10}; do curl http://localhost:3001/ -s > /dev/null && echo "Request $i complete"; sleep 1; done
+   ```
+
+3. Check the metrics and traces in Grafana to verify telemetry is flowing to the selected collector.
+
+## 10. Verify End-to-End Integration
 
 ### Check if Prometheus is Scraping the OpenTelemetry Collector
 ```bash
@@ -135,7 +217,7 @@ kubectl port-forward -n nestjs svc/nestjs-app-service 3000:80
 Open http://localhost:3000 in your browser and interact with the application.
 Then check the Grafana dashboards to see telemetry data from your application.
 
-## 10. Sending Data Using curl Commands
+## 11. Sending Data Using curl Commands
 
 Set up port-forwarding to the OpenTelemetry Collector:
 ```bash
@@ -301,3 +383,9 @@ If metrics aren't showing:
 1. Check ServiceMonitor: `kubectl describe servicemonitor -n observability otel-collector`
 2. Check OTEL collector logs: `kubectl logs -n observability -l app=otel-collector`
 3. Verify Prometheus targets: Look for the otel-collector endpoint at http://localhost:9090/targets
+
+If the OpenTelemetry Configuration UI is not working:
+1. Check if the service is accessible: `curl http://localhost:3001/health`
+2. Check the application logs: `kubectl logs -n nestjs deployment/nestjs-app`
+3. If you see OTLP exporter errors, enable test mode to prevent actual reconnection attempts
+4. Verify that the required endpoints are correctly set in the k8s/nestjs-app.yaml file

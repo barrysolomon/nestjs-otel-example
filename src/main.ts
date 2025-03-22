@@ -4,6 +4,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { useWinston, usePino, initializeLoggers, log } from './logger.config';
 import * as fs from 'fs';
+import { join } from 'path';
+import * as express from 'express';
 
 // Initialize NestJS instrumentation BEFORE other imports
 const nestInstrumentation = new NestInstrumentation();
@@ -23,9 +25,14 @@ function detectRuntimeEnvironment(): string {
 }
 
 async function bootstrap() {
-
-  // Initialize OpenTelemetry
-  await initializeOpenTelemetry();
+  // Set up OpenTelemetry before importing any instrumented modules
+  process.env.OTEL_SERVICE_NAME = 'nestjs-opentelemetry-example';
+  await initializeOpenTelemetry(
+    'nestjs-opentelemetry-example',
+    process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '',
+    process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || '',
+    process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || ''
+  );
 
   // Initialize loggers after Lumigo is set up
   await initializeLoggers();
@@ -45,9 +52,14 @@ async function bootstrap() {
   // Create the NestJS application
   const app = await NestFactory.create(AppModule);
 
+  // Enable CORS
+  app.enableCors();
+
+  // Serve static files from the public directory
+  app.use('/public', express.static(join(__dirname, '..', 'public')));
+
   // Start listening
   await app.listen(3000);
-
 }
 
 bootstrap();

@@ -9,6 +9,7 @@ import { useWinston, usePino, pinoLogger, winstonLogger } from './logger.config'
 import { DebugController } from './debug.controller';
 import { HttpModule } from '@nestjs/axios';
 import { APP_FILTER } from '@nestjs/core';
+import { OtelConfigModule } from './otel-config/otel-config.module';
 
 // Our services
 import { TraceService } from './services/trace.service';
@@ -27,6 +28,7 @@ import { QueryParserService } from './services/query-parser.service';
         ]
       : []),
       HttpModule,
+      OtelConfigModule,
   ],
   controllers: [
     HealthController,

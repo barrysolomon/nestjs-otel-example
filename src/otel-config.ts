@@ -15,113 +15,78 @@ let sdk: NodeSDK;
 let loggerProvider: LoggerProvider;
 let meterProvider: MeterProvider;
 
-export async function initializeOpenTelemetry() {
+export const initializeOpenTelemetry = async (
+  serviceName: string,
+  tracesUrl: string,
+  logsUrl: string,
+  metricsUrl: string,
+): Promise<NodeSDK> => {
+  console.log('OpenTelemetry Environment Variables:');
+  console.log(`OTEL_SERVICE_NAME: ${process.env.OTEL_SERVICE_NAME || 'Not set'}`);
+  console.log(`OTEL_EXPORTER_OTLP_PROTOCOL: ${process.env.OTEL_EXPORTER_OTLP_PROTOCOL || 'Not set'}`);
+  console.log(`OTEL_EXPORTER_OTLP_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'Not set'}`);
+  console.log(`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 'Not set'}`);
+  console.log(`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || 'Not set'}`);
+  console.log(`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 'Not set'}`);
+
+  // Create a resource that labels all telemetry with service name
   const resource = new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'nestjs-opentelemetry-example',
+    [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
   });
 
-  const traceExporter = new OTLPTraceExporter({
-    url: 'http://otel-collector.observability.svc.cluster.local:4318/v1/traces',
-    timeoutMillis: 10000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  // Configure the log exporter
-  const logExporter = new OTLPLogExporter({
-    url: 'http://otel-collector.observability.svc.cluster.local:4318/v1/logs',
-    timeoutMillis: 10000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  // Get the metrics endpoint from environment variable or use default
-  const metricsUrl = (() => {
-    const endpoint = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || 'otel-collector.observability.svc.cluster.local:4318';
-    // Check if the endpoint starts with http, if not, add http://
-    if (!endpoint.startsWith('http')) {
-      return `http://${endpoint}`;
-    }
-    return endpoint;
-  })();
-
-  console.log(`Using metrics endpoint: ${metricsUrl}`);
+  // Initialize the metric provider
+  const metricExporter = new OTLPMetricExporter();
+  console.log('Using metrics endpoint:', process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '(using environment defaults)');
   
-  // Configure the metrics exporter
-  const metricExporter = new OTLPMetricExporter({
-    url: `${metricsUrl}/v1/metrics`,
-    timeoutMillis: 10000,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  // Set up metrics
-  meterProvider = new MeterProvider({
+  const meterProvider = new MeterProvider({
     resource: resource,
   });
   
-  // Add a periodic metric reader
-  meterProvider.addMetricReader(
-    new PeriodicExportingMetricReader({
-      exporter: metricExporter,
-      exportIntervalMillis: 15000, // Export metrics every 15 seconds
-    })
-  );
+  meterProvider.addMetricReader(new PeriodicExportingMetricReader({
+    exporter: metricExporter,
+    exportIntervalMillis: 1000,
+  }));
   
   // Set the global meter provider
   metrics.setGlobalMeterProvider(meterProvider);
 
-  // Set up the logger provider
-  loggerProvider = new LoggerProvider({ resource });
+  // Initialize the log provider
+  const logExporter = new OTLPLogExporter();
+  console.log('Using logs endpoint:', process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || '(using environment defaults)');
+  
+  const loggerProvider = new LoggerProvider({
+    resource: resource,
+  });
+  
   loggerProvider.addLogRecordProcessor(new SimpleLogRecordProcessor(logExporter));
-
-  // Set the global LoggerProvider
+  
+  // Set the global logger provider
   logs.setGlobalLoggerProvider(loggerProvider);
 
-  sdk = new NodeSDK({
+  // Create and register SDK
+  const traceExporter = new OTLPTraceExporter();
+  console.log('Using traces endpoint:', process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '(using environment defaults)');
+  
+  const newSdk = new NodeSDK({
     resource,
     traceExporter,
-    instrumentations: [
-      getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-fs': {
-          enabled: false,
-        },
-        '@opentelemetry/instrumentation-http': {
-          enabled: true,
-          ignoreIncomingPaths: ['/health'],
-        },
-        '@opentelemetry/instrumentation-express': {
-          enabled: true,
-        },
-        '@opentelemetry/instrumentation-nestjs-core': {
-          enabled: true,
-        },
-      }),
-    ],
+    instrumentations: [getNodeAutoInstrumentations()],
   });
 
+  // Assign to the global SDK variable
+  sdk = newSdk;
+  
+  // Start the SDK and return it
   try {
     await sdk.start();
     console.log('OpenTelemetry SDK started successfully');
   } catch (error) {
-    console.error('Error initializing OpenTelemetry SDK:', error);
+    console.error('Error starting OpenTelemetry SDK:', error);
+    throw error;
   }
 
-  process.on('SIGTERM', () => {
-    sdk
-      .shutdown()
-      .then(() => {
-        console.log('Tracing terminated');
-        return meterProvider.shutdown();
-      })
-      .then(() => console.log('Metrics terminated'))
-      .catch((error) => console.log('Error terminating telemetry', error))
-      .finally(() => process.exit(0));
-  });
-}
+  return sdk;
+};
 
 export function getSDK(): NodeSDK {
   return sdk;
@@ -133,4 +98,51 @@ export function getLoggerProvider(): LoggerProvider {
 
 export function getMeterProvider(): MeterProvider {
   return meterProvider;
+}
+
+export async function startSdk(): Promise<void> {
+  if (sdk) {
+    try {
+      // Check if SDK is already started
+      if (sdk['_isShutdown'] === false) {
+        console.log('OpenTelemetry SDK is already running');
+        return;
+      }
+      
+      await sdk.start();
+      console.log('OpenTelemetry SDK started successfully');
+      
+      // Set up graceful shutdown
+      process.on('SIGTERM', async () => {
+        try {
+          await sdk.shutdown();
+          console.log('OpenTelemetry SDK shut down successfully');
+        } catch (error) {
+          console.error('Error shutting down OpenTelemetry SDK:', error);
+        } finally {
+          process.exit(0);
+        }
+      });
+    } catch (error) {
+      console.error('Error starting OpenTelemetry SDK:', error);
+    }
+  } else {
+    console.error('OpenTelemetry SDK not initialized');
+  }
+}
+
+export async function reinitializeOpenTelemetry(): Promise<void> {
+  // Get the selected collector from the config
+  const serviceName = process.env.OTEL_SERVICE_NAME || '';
+  const tracesUrl = process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '';
+  const logsUrl = process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || '';
+  const metricsUrl = process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '';
+
+  // Initialize with current environment variables
+  sdk = await initializeOpenTelemetry(
+    serviceName,
+    tracesUrl,
+    logsUrl,
+    metricsUrl
+  );
 }

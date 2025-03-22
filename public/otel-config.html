@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenTelemetry Configuration</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .config-panel {
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    input[type="radio"] {
+      margin-right: 5px;
+    }
+    input[type="checkbox"] {
+      margin-right: 5px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .custom-fields {
+      margin-top: 15px;
+      padding-left: 20px;
+      display: none;
+    }
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .test-mode {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+    /* Keep radio buttons and labels on same line */
+    .radio-option {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .radio-option label {
+      display: inline;
+      margin-bottom: 0;
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+  <h1>OpenTelemetry Collector Configuration</h1>
+  
+  <div class="config-panel">
+    <form id="otelConfigForm">
+      <div class="form-group">
+        <label>Select Collector:</label>
+        <div class="radio-option">
+          <input type="radio" id="sawmills" name="collectorType" value="sawmills">
+          <label for="sawmills">Sawmills Collector</label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" id="otel" name="collectorType" value="otel">
+          <label for="otel">OpenTelemetry Collector</label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" id="custom" name="collectorType" value="custom">
+          <label for="custom">Custom Collector</label>
+        </div>
+      </div>
+      
+      <div id="customFields" class="custom-fields">
+        <div class="form-group">
+          <label for="tracesEndpoint">Traces Endpoint:</label>
+          <input type="text" id="tracesEndpoint" name="tracesEndpoint" placeholder="http://your-collector:4318">
+        </div>
+        <div class="form-group">
+          <label for="logsEndpoint">Logs Endpoint:</label>
+          <input type="text" id="logsEndpoint" name="logsEndpoint" placeholder="http://your-collector:4318">
+        </div>
+        <div class="form-group">
+          <label for="metricsEndpoint">Metrics Endpoint:</label>
+          <input type="text" id="metricsEndpoint" name="metricsEndpoint" placeholder="http://your-collector:4317">
+        </div>
+      </div>
+      
+      <div class="test-mode">
+        <div class="form-group">
+          <div class="radio-option">
+            <input type="checkbox" id="testMode" name="testMode">
+            <label for="testMode">Enable Test Mode (prevents actual reconnection to collector)</label>
+          </div>
+          <p style="color: #6c757d; margin-top: 5px; font-size: 0.9em;">
+            When test mode is enabled, configuration is saved but the OpenTelemetry SDK is not restarted.
+            This is useful for testing the UI without actually changing the collector connection.
+          </p>
+        </div>
+      </div>
+      
+      <button type="submit">Apply Configuration</button>
+    </form>
+    
+    <div id="status" class="status" style="display: none;"></div>
+  </div>
+  
+  <div class="config-panel">
+    <h2>Current Configuration</h2>
+    <pre id="currentConfig"></pre>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('otelConfigForm');
+      const customFields = document.getElementById('customFields');
+      const status = document.getElementById('status');
+      const currentConfig = document.getElementById('currentConfig');
+      const testModeCheckbox = document.getElementById('testMode');
+      
+      // Show/hide custom fields based on selection
+      document.querySelectorAll('input[name="collectorType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+          if (this.value === 'custom') {
+            customFields.style.display = 'block';
+          } else {
+            customFields.style.display = 'none';
+          }
+        });
+      });
+      
+      // Load current configuration
+      loadCurrentConfig();
+      
+      // Handle form submission
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const collectorType = document.querySelector('input[name="collectorType"]:checked').value;
+        const config = { 
+          collectorType,
+          testMode: testModeCheckbox.checked
+        };
+        
+        if (collectorType === 'custom') {
+          config.tracesEndpoint = document.getElementById('tracesEndpoint').value;
+          config.logsEndpoint = document.getElementById('logsEndpoint').value;
+          config.metricsEndpoint = document.getElementById('metricsEndpoint').value;
+        }
+        
+        updateConfig(config);
+      });
+      
+      function loadCurrentConfig() {
+        fetch('/api/otel-config')
+          .then(response => response.json())
+          .then(data => {
+            // Display current config
+            currentConfig.textContent = JSON.stringify(data, null, 2);
+            
+            // Set form values
+            document.getElementById(data.collectorType).checked = true;
+            
+            if (data.testMode !== undefined) {
+              testModeCheckbox.checked = data.testMode;
+            }
+            
+            if (data.collectorType === 'custom') {
+              customFields.style.display = 'block';
+              document.getElementById('tracesEndpoint').value = data.collectors.custom.tracesEndpoint;
+              document.getElementById('logsEndpoint').value = data.collectors.custom.logsEndpoint;
+              document.getElementById('metricsEndpoint').value = data.collectors.custom.metricsEndpoint;
+            }
+          })
+          .catch(error => {
+            console.error('Error loading configuration:', error);
+            showStatus('Error loading configuration', false);
+          });
+      }
+      
+      function updateConfig(config) {
+        fetch('/api/otel-config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(config),
+        })
+          .then(response => response.json())
+          .then(data => {
+            currentConfig.textContent = JSON.stringify(data, null, 2);
+            
+            if (data.error) {
+              showStatus(`Error: ${data.error}`, false);
+            } else {
+              showStatus('Configuration updated successfully!', true);
+            }
+            
+            // Reload the page after a brief delay to ensure changes take effect
+            setTimeout(() => {
+              location.reload();
+            }, 3000);
+          })
+          .catch(error => {
+            console.error('Error updating configuration:', error);
+            showStatus('Error updating configuration', false);
+          });
+      }
+      
+      function showStatus(message, isSuccess) {
+        status.textContent = message;
+        status.className = 'status ' + (isSuccess ? 'success' : 'error');
+        status.style.display = 'block';
+        
+        // Hide status after 5 seconds
+        setTimeout(() => {
+          status.style.display = 'none';
+        }, 5000);
+      }
+    });
+  </script>
+</body>
+</html> 

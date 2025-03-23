@@ -1,12 +1,7 @@
 
-kubectl port-forward -n observability svc/otel-collector 8889:8889
-
-
 ===============================
 Installation
 ===============================
-
-Based on the files I've examined, here's the recommended order for rebuilding your Kubernetes cluster:
 
 1. **Create the observability namespace**:
    ```bash
@@ -66,23 +61,16 @@ Based on the files I've examined, here's the recommended order for rebuilding yo
    kubectl apply -f k8s/allow-nestjs-to-otel.yaml
    ```
 
-kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
+8. **Apply Network Policies** (if needed):
+   ```bash
+   kubectl apply -f k8s/allow-monitoring.yaml
+   kubectl apply -f k8s/allow-nestjs-to-otel.yaml
+   ```
 
 kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
 kubectl port-forward -n observability svc/prometheus-grafana 3001:80
 
-for i in {1..100}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
-
-
-This order ensures that:
-1. The monitoring infrastructure (Prometheus, Grafana) is set up first
-2. Loki is deployed for log collection
-3. The OpenTelemetry Collector is properly configured and discoverable
-4. Grafana is configured with the necessary datasources and dashboards
-5. Finally, the application is deployed to start generating telemetry data
-
-Make sure to check the status of each deployment before proceeding to the next step to ensure everything is running properly.
-
+kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
 
 --------------
 NESTJS APP

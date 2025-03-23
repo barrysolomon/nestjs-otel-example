@@ -120,10 +120,50 @@ export class AutoTraceService implements OnApplicationBootstrap, OnApplicationSh
    */
   generateRandomTrace() {
     const traceType = this.getWeightedRandomValue(this.TRACE_TYPE_WEIGHTS);
-    const { operation, message, customTag } = this.generateTraceData(traceType);
+    const operationName = this.getOperationNameForType(traceType);
     
-    // Generate the trace via trace service
-    this.traceService.generateTrace(message, customTag, operation);
+    // Generate the trace via trace service with the new method signature
+    this.traceService.generateTrace(operationName);
+  }
+
+  /**
+   * Get operation name based on trace type
+   */
+  private getOperationNameForType(traceType: TraceType): string {
+    const timestamp = new Date().toLocaleTimeString();
+    
+    switch (traceType) {
+      case TraceType.API_REQUEST:
+        const apiMethod = this.getRandomElement(['GET', 'POST', 'PUT', 'DELETE']);
+        const endpoint = this.getRandomElement(['/api/users', '/api/products', '/api/orders', '/api/auth']);
+        return `http_${apiMethod.toLowerCase()}_${endpoint.replace(/\//g, '_')}`;
+        
+      case TraceType.DATABASE_QUERY:
+        const dbOperation = this.getRandomElement(['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+        const table = this.getRandomElement(['users', 'products', 'orders', 'payments']);
+        return `database_${dbOperation.toLowerCase()}_${table}`;
+        
+      case TraceType.USER_ACTION:
+        const userAction = this.getRandomElement(['login', 'logout', 'profile_update', 'password_change']);
+        return `user_action_${userAction}`;
+        
+      case TraceType.BACKGROUND_JOB:
+        const job = this.getRandomElement(['email_sending', 'data_processing', 'cleanup', 'report_generation']);
+        return `job_${job}`;
+        
+      case TraceType.MICROSERVICE_CALL:
+        const service = this.getRandomElement(['auth-service', 'payment-service', 'notification-service', 'user-service']);
+        const serviceMethod = this.getRandomElement(['getUser', 'processPayment', 'sendNotification', 'validateToken']);
+        return `${service.replace('-', '_')}_${serviceMethod}`;
+        
+      case TraceType.EXTERNAL_API:
+        const api = this.getRandomElement(['stripe', 'twilio', 'mailchimp', 'aws-s3']);
+        const apiAction = this.getRandomElement(['getData', 'sendData', 'authenticate', 'validate']);
+        return `external_${api}_${apiAction}`;
+        
+      default:
+        return 'generic_trace';
+    }
   }
 
   /**
@@ -144,75 +184,6 @@ export class AutoTraceService implements OnApplicationBootstrap, OnApplicationSh
     }
     
     return keys[0]; // Fallback
-  }
-
-  /**
-   * Generate trace data based on the trace type
-   */
-  private generateTraceData(traceType: TraceType): { operation: string, message: string, customTag: string } {
-    const timestamp = new Date().toLocaleTimeString();
-    
-    switch (traceType) {
-      case TraceType.API_REQUEST:
-        const apiMethod = this.getRandomElement(['GET', 'POST', 'PUT', 'DELETE']);
-        const endpoint = this.getRandomElement(['/api/users', '/api/products', '/api/orders', '/api/auth']);
-        return {
-          operation: `${apiMethod.toLowerCase()}_${endpoint.replace(/\//g, '_')}`,
-          message: `API Request: ${apiMethod} ${endpoint} at ${timestamp}`,
-          customTag: `method=${apiMethod},endpoint=${endpoint},auto=true`
-        };
-        
-      case TraceType.DATABASE_QUERY:
-        const dbOperation = this.getRandomElement(['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
-        const table = this.getRandomElement(['users', 'products', 'orders', 'payments']);
-        return {
-          operation: `db_${dbOperation.toLowerCase()}_${table}`,
-          message: `Database Query: ${dbOperation} on ${table} table at ${timestamp}`,
-          customTag: `operation=${dbOperation},table=${table},auto=true`
-        };
-        
-      case TraceType.USER_ACTION:
-        const userAction = this.getRandomElement(['login', 'logout', 'profile_update', 'password_change']);
-        const userId = `user_${Math.floor(Math.random() * 1000)}`;
-        return {
-          operation: `user_action_${userAction}`,
-          message: `User action: ${userAction} for ${userId} at ${timestamp}`,
-          customTag: `action=${userAction},userId=${userId},auto=true`
-        };
-        
-      case TraceType.BACKGROUND_JOB:
-        const job = this.getRandomElement(['email_sending', 'data_processing', 'cleanup', 'report_generation']);
-        return {
-          operation: `job_${job}`,
-          message: `Background job: ${job} started at ${timestamp}`,
-          customTag: `job=${job},scheduled=true,auto=true`
-        };
-        
-      case TraceType.MICROSERVICE_CALL:
-        const service = this.getRandomElement(['auth-service', 'payment-service', 'notification-service', 'user-service']);
-        const serviceMethod = this.getRandomElement(['getUser', 'processPayment', 'sendNotification', 'validateToken']);
-        return {
-          operation: `${service.replace('-', '_')}_${serviceMethod}`,
-          message: `Microservice call: ${service}.${serviceMethod} at ${timestamp}`,
-          customTag: `service=${service},method=${serviceMethod},auto=true`
-        };
-        
-      case TraceType.EXTERNAL_API:
-        const api = this.getRandomElement(['stripe', 'twilio', 'mailchimp', 'aws-s3']);
-        const apiAction = this.getRandomElement(['getData', 'sendData', 'authenticate', 'validate']);
-        return {
-          operation: `external_${api}_${apiAction}`,
-          message: `External API call: ${api} ${apiAction} at ${timestamp}`,
-          customTag: `api=${api},action=${apiAction},external=true,auto=true`
-        };
-        
-      default:
-        return {
-          operation: 'generic_trace',
-          message: `Auto-generated trace at ${timestamp}`,
-          customTag: 'auto=true'
-        };
-    }
   }
 
   /**

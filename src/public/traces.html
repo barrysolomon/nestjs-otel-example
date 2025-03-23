@@ -581,7 +581,7 @@
       }
       
       tableBody.innerHTML = traces.map(trace => {
-        const startTime = new Date(trace.startTime);
+        const startTime = new Date(trace.timestamp || trace.startTime);
         const formattedTime = startTime.toLocaleString();
         
         // Determine status badge class
@@ -590,6 +590,9 @@
           statusBadgeClass = 'badge-warning';
         } else if (trace.status === 'error') {
           statusBadgeClass = 'badge-error';
+        } else if (!trace.status) {
+          // Default status if not provided
+          trace.status = 'success';
         }
         
         return `

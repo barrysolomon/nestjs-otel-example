@@ -352,552 +352,604 @@
           <h3 class="card-title">Monitoring Metrics</h3>
         </div>
         
-        <div class="metrics">
-          <div class="metric">
-            <div class="metric-value" id="total-traces">0</div>
-            <div class="metric-label">Total Traces</div>
+        <div class="metrics-toolbar" style="display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.375rem; margin-bottom: 1rem; align-items: center;">
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <label for="metrics-time-period" style="margin: 0; white-space: nowrap;">Period:</label>
+            <select id="metrics-time-period" style="width: auto; padding: 0.375rem 0.5rem; height: 38px;">
+              <option value="5">5 minutes</option>
+              <option value="15" selected>15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="360">6 hours</option>
+              <option value="720">12 hours</option>
+              <option value="1440">24 hours</option>
+              <option value="0">All time</option>
+            </select>
           </div>
-          <div class="metric">
-            <div class="metric-value" id="avg-duration">0 ms</div>
-            <div class="metric-label">Avg Duration</div>
+          
+          <div style="height: 24px; width: 1px; background-color: #e2e8f0;"></div>
+          
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <label class="checkbox-label" style="display: flex; align-items: center; margin: 0; white-space: nowrap;">
+              <input type="checkbox" id="auto-refresh-metrics" checked style="margin-right: 0.25rem;">
+              Auto-refresh
+            </label>
+            <span style="margin-right: 0.25rem;">every</span>
+            <input type="number" id="metrics-refresh-interval" min="1" value="5" style="width: 3rem; padding: 0.375rem 0.5rem; height: 38px;">
+            <span>seconds</span>
           </div>
-          <div class="metric">
-            <div class="metric-value" id="total-logs">0</div>
-            <div class="metric-label">Total Logs</div>
-          </div>
-          <div class="metric">
-            <div class="metric-value" id="error-logs">0</div>
-            <div class="metric-label">Error Logs</div>
+          
+          <div style="height: 24px; width: 1px; background-color: #e2e8f0;"></div>
+          
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="refresh-metrics-btn" class="btn btn-secondary" style="padding: 0.375rem 0.75rem; height: 38px; display: flex; align-items: center;">
+              <span style="margin-right: 0.25rem;">↻</span> Refresh
+            </button>
+            <button id="reset-metrics-btn" class="btn btn-secondary" style="padding: 0.375rem 0.75rem; background-color: #f59e0b; height: 38px;">Reset</button>
           </div>
         </div>
         
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <input type="checkbox" id="auto-refresh-metrics" />
-            <label for="auto-refresh-metrics" style="margin-bottom: 0;">Auto-refresh</label>
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
-              <input type="number" id="metrics-refresh-interval" style="width: 80px;" min="1" value="5" />
-              <span>seconds</span>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-value" id="trace-count">-</div>
+            <div class="metric-label">Traces</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="log-count">-</div>
+            <div class="metric-label">Logs</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="error-count">-</div>
+            <div class="metric-label">Errors</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="auto-trace-count">-</div>
+            <div class="metric-label">Auto Traces</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value" id="auto-log-count">-</div>
+            <div class="metric-label">Auto Logs</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Auto-Trace Control -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Auto-Trace Control</h3>
+          <span id="auto-trace-status-badge" class="badge inactive">Inactive</span>
+        </div>
+        <div class="card-content">
+          <p>Generate traces automatically at regular intervals to simulate application traffic.</p>
+          <div class="form-group">
+            <label for="trace-interval-input">Trace interval (ms):</label>
+            <input type="number" id="trace-interval-input" min="10" value="3000" class="form-control">
+            <small class="form-text text-muted">Minimum interval: 10ms</small>
+          </div>
+          <div class="controls">
+            <button id="start-auto-trace-btn" class="btn">Start Auto-Trace</button>
+            <button id="stop-auto-trace-btn" class="btn btn-secondary">Stop Auto-Trace</button>
+          </div>
+          <div id="auto-trace-status" class="status inactive">Auto-trace is not running</div>
+        </div>
+      </div>
+      
+      <!-- Auto-Logger Control -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Auto-Logger Control</h3>
+          <span id="auto-log-status-badge" class="badge inactive">Inactive</span>
+        </div>
+        <div class="card-content">
+          <p>Generate logs automatically at regular intervals to simulate application activity.</p>
+          <div class="form-group">
+            <label for="log-interval-input">Log interval (ms):</label>
+            <input type="number" id="log-interval-input" min="1000" value="2000" class="form-control">
+            <small class="form-text text-muted">Minimum recommended interval: 1000ms</small>
+          </div>
+          <div class="controls">
+            <button id="start-auto-log-btn" class="btn">Start Auto-Logger</button>
+            <button id="stop-auto-log-btn" class="btn btn-secondary">Stop Auto-Logger</button>
+          </div>
+          <div id="auto-log-status" class="status inactive">Auto-logger is not running</div>
+        </div>
+      </div>
+      
+      <!-- Manual Trace Generation -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Manual Trace</h3>
+        </div>
+        <div class="card-content">
+          <p>Generate a single trace with custom parameters.</p>
+          <div class="form-group">
+            <label for="trace-operation-input">Operation:</label>
+            <input type="text" id="trace-operation-input" value="manual-operation" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="trace-message-input">Message:</label>
+            <input type="text" id="trace-message-input" value="Test Trace" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="trace-custom-payload">
+              Custom Payload (JSON):
+              <small class="form-text text-muted">Optional: Add additional attributes for this trace</small>
+            </label>
+            <textarea id="trace-custom-payload" class="form-control" rows="5" style="font-family: monospace;">{
+  "user_id": "user-123",
+  "source": "manual-test",
+  "priority": "high",
+  "attributes": {
+    "test_run": true,
+    "component": "api"
+  }
+}</textarea>
+          </div>
+          <div class="controls" style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="send-trace-btn" class="btn">Send Trace</button>
+            <button id="reset-trace-payload-btn" class="btn btn-secondary">Reset Payload</button>
+            <div class="checkbox-group" style="margin-left: auto;">
+              <label style="display: flex; align-items: center; margin: 0;">
+                <input type="checkbox" id="trace-include-errors" style="margin-right: 0.25rem;">
+                Include Error
+              </label>
             </div>
           </div>
-          <button class="btn btn-secondary" onclick="refreshMetrics()">Refresh Now</button>
+          <div id="trace-result" class="status" style="display: none;"></div>
         </div>
       </div>
       
-      <!-- Trace Generation Card -->
+      <!-- Manual Log Generation -->
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Trace Generation</h3>
+          <h3 class="card-title">Manual Log</h3>
         </div>
-        <div class="card-body">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="width: 50%; padding: 0.75rem; vertical-align: top;">
-                <h4 style="margin-bottom: 1rem; color: #4b5563;">Manual Trace Generator</h4>
-                <div class="form-group">
-                  <label for="trace-message">Message</label>
-                  <input type="text" id="trace-message" placeholder="Enter a message to include in the trace" value="Test Trace" />
-                </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="custom-tag">Custom Tag</label>
-                    <input type="text" id="custom-tag" placeholder="tag-name=tag-value" value="custom-tag=demo-value" />
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="operation-name">Operation Name</label>
-                    <input type="text" id="operation-name" placeholder="Operation name" value="manual-operation" />
-                  </div>
-                </div>
-                
-                <div class="form-group">
-                  <label for="event-message">Event Message</label>
-                  <input type="text" id="event-message" placeholder="Enter an event message (optional)" value="Custom Event" />
-                </div>
-                
-                <div class="form-group" style="text-align: right;">
-                  <button class="btn" onclick="sendTrace()">Generate Trace</button>
-                </div>
-                
-                <div id="trace-status" style="display: none;"></div>
-              </td>
-              <td style="width: 50%; padding: 0.75rem; vertical-align: top; border-left: 1px solid #e2e8f0;">
-                <h4 style="margin-bottom: 1rem; color: #4b5563;">Auto-Trace Control</h4>
-                <div class="status" id="autotrace-status">Loading...</div>
-                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
-                  <span>Interval: <span id="autotrace-interval">-</span></span>
-                  <span>Last Updated: <span id="autotrace-updated">-</span></span>
-                </div>
-                
-                <div style="margin: 1rem 0;">
-                  <label for="trace-interval-input">Interval (ms):</label>
-                  <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="number" id="trace-interval-input" min="10" value="3000" style="max-width: 150px;" />
-                    <small style="color: #64748b;">(Min: 10ms)</small>
-                  </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-                  <button id="startAutotrace" class="btn" style="flex: 1;">Start</button>
-                  <button id="stopAutotrace" class="btn btn-secondary" style="flex: 1;">Stop</button>
-                  <button id="checkTraceStatus" class="btn btn-secondary" style="flex: 1;">Refresh</button>
-                </div>
-              </td>
-            </tr>
-          </table>
-        </div>
-      </div>
-      
-      <!-- Log Generation Card -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Log Generation</h3>
-        </div>
-        <div class="card-body">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="width: 50%; padding: 0.75rem; vertical-align: top;">
-                <h4 style="margin-bottom: 1rem; color: #4b5563;">Manual Log Generator</h4>
-                <div class="form-group">
-                  <label for="log-message">Message</label>
-                  <input type="text" id="log-message" placeholder="Enter a message to include in the log" value="Test Log" />
-                </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="log-level">Log Level</label>
-                    <select id="log-level">
-                      <option value="info" selected>Info</option>
-                      <option value="warn">Warning</option>
-                      <option value="error">Error</option>
-                      <option value="debug">Debug</option>
-                    </select>
-                  </div>
-                  
-                  <div class="form-group">
-                    <label for="log-context">Context</label>
-                    <input type="text" id="log-context" placeholder="Context for the log" value="manual-log" />
-                  </div>
-                </div>
-                
-                <div class="form-group">
-                  <label for="log-metadata">Metadata (JSON)</label>
-                  <textarea id="log-metadata" rows="3" placeholder='{"key": "value"}'>{
-  "userId": "user-123",
-  "action": "manual-log",
-  "timestamp": "",
-  "source": "dashboard"
-}</textarea>
-                </div>
-                
-                <div class="form-group" style="text-align: right;">
-                  <button class="btn" onclick="sendLog()">Generate Log</button>
-                </div>
-                
-                <div id="log-status" style="display: none;"></div>
-              </td>
-              <td style="width: 50%; padding: 0.75rem; vertical-align: top; border-left: 1px solid #e2e8f0;">
-                <h4 style="margin-bottom: 1rem; color: #4b5563;">Auto-Log Control</h4>
-                <div class="status" id="autolog-status">Loading...</div>
-                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
-                  <span>Interval: <span id="autolog-interval">-</span></span>
-                  <span>Last Updated: <span id="autolog-updated">-</span></span>
-                </div>
-                
-                <div style="margin: 1rem 0;">
-                  <label for="log-interval-input">Interval (ms):</label>
-                  <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="number" id="log-interval-input" min="10" value="2000" style="max-width: 150px;" />
-                    <small style="color: #64748b;">(Min: 10ms)</small>
-                  </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-                  <button id="startAutolog" class="btn" style="flex: 1;">Start</button>
-                  <button id="stopAutolog" class="btn btn-secondary" style="flex: 1;">Stop</button>
-                  <button id="checkStatus" class="btn btn-secondary" style="flex: 1;">Refresh</button>
-                </div>
-              </td>
-            </tr>
-          </table>
+        <div class="card-content">
+          <p>Generate a single log entry with custom parameters.</p>
+          <div class="form-group">
+            <label for="log-level-input">Log Level:</label>
+            <select id="log-level-input" class="form-control">
+              <option value="debug">Debug</option>
+              <option value="info" selected>Info</option>
+              <option value="warn">Warning</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="log-message-input">Message:</label>
+            <input type="text" id="log-message-input" value="Test Log Message" class="form-control">
+          </div>
+          <div class="form-group">
+            <label for="log-context-input">Context:</label>
+            <input type="text" id="log-context-input" value="Manual" class="form-control">
+          </div>
+          <div class="controls">
+            <button id="send-log-btn" class="btn">Send Log</button>
+          </div>
+          <div id="log-result" class="status" style="display: none;"></div>
         </div>
       </div>
     </main>
   </div>
 
   <script>
-    // Tab switching
-    document.addEventListener('DOMContentLoaded', function() {
-      const tabItems = document.querySelectorAll('.tab-item');
-      tabItems.forEach(item => {
-        item.addEventListener('click', function() {
-          // Remove active class from all tabs
-          tabItems.forEach(tab => tab.classList.remove('active'));
-          
-          // Add active class to clicked tab
-          this.classList.add('active');
-          
-          // Show the corresponding tab content
-          const tabId = this.getAttribute('data-tab');
-          document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-          });
-          document.getElementById(`${tabId}-tab`).classList.add('active');
-        });
-      });
+    // Set up page elements on load
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log('Dashboard initialized');
       
+      // Disable auto-logger by default to prevent log overload
+      localStorage.removeItem('autologger-running');
+      
+      // Initial page load
+      await Promise.all([
+        checkAutoTracerStatus(),
+        checkAutoLoggerStatus(),
+        refreshMetrics()
+      ]);
+
       // Set up Auto-Trace Control
-      document.getElementById('startAutotrace').addEventListener('click', startAutoTracer);
-      document.getElementById('stopAutotrace').addEventListener('click', stopAutoTracer);
-      document.getElementById('checkTraceStatus').addEventListener('click', checkAutoTracerStatus);
+      document.getElementById('start-auto-trace-btn').addEventListener('click', startAutoTracer);
+      document.getElementById('stop-auto-trace-btn').addEventListener('click', stopAutoTracer);
       
       // Set up Auto-Logger Control
-      document.getElementById('startAutolog').addEventListener('click', startAutoLogger);
-      document.getElementById('stopAutolog').addEventListener('click', stopAutoLogger);
-      document.getElementById('checkStatus').addEventListener('click', checkAutoLoggerStatus);
+      document.getElementById('start-auto-log-btn').addEventListener('click', startAutoLogger);
+      document.getElementById('stop-auto-log-btn').addEventListener('click', stopAutoLogger);
+
+      // Set up Manual Trace Control
+      document.getElementById('send-trace-btn').addEventListener('click', sendManualTrace);
+      document.getElementById('reset-trace-payload-btn').addEventListener('click', resetTracePayload);
+      
+      // Set up Manual Log Control
+      document.getElementById('send-log-btn').addEventListener('click', sendManualLog);
 
       // Set up auto-refresh metrics
       const autoRefreshCheckbox = document.getElementById('auto-refresh-metrics');
-      autoRefreshCheckbox.addEventListener('change', toggleMetricsAutoRefresh);
+      const refreshIntervalInput = document.getElementById('metrics-refresh-interval');
+      const refreshBtn = document.getElementById('refresh-metrics-btn');
+      const resetBtn = document.getElementById('reset-metrics-btn');
       
-      // Load auto-refresh settings from localStorage
-      if (localStorage.getItem('metricsAutoRefresh') === 'true') {
-        autoRefreshCheckbox.checked = true;
-        toggleMetricsAutoRefresh();
+      // Restore saved settings from localStorage
+      const savedAutoRefresh = localStorage.getItem('metrics-auto-refresh');
+      const savedRefreshInterval = localStorage.getItem('metrics-refresh-interval');
+      const savedTimePeriod = localStorage.getItem('metrics-time-period');
+      
+      if (savedAutoRefresh !== null) {
+        autoRefreshCheckbox.checked = savedAutoRefresh === 'true';
       }
       
-      // Load interval values from localStorage
-      if (localStorage.getItem('metricsRefreshInterval')) {
-        document.getElementById('metrics-refresh-interval').value = localStorage.getItem('metricsRefreshInterval');
-      }
-      if (localStorage.getItem('traceInterval')) {
-        document.getElementById('trace-interval-input').value = localStorage.getItem('traceInterval');
-      }
-      if (localStorage.getItem('logInterval')) {
-        document.getElementById('log-interval-input').value = localStorage.getItem('logInterval');
-      }
-
-      // Check statuses when page loads
-      checkAutoTracerStatus();
-      checkAutoLoggerStatus();
-      
-      // Load metrics when page loads
-      refreshMetrics();
-    });
-    
-    // Variables for interval timers
-    let metricsRefreshTimer = null;
-    
-    // Toggle auto-refresh for metrics
-    function toggleMetricsAutoRefresh() {
-      const autoRefreshCheckbox = document.getElementById('auto-refresh-metrics');
-      const intervalInput = document.getElementById('metrics-refresh-interval');
-      
-      // Save settings to localStorage
-      localStorage.setItem('metricsAutoRefresh', autoRefreshCheckbox.checked);
-      localStorage.setItem('metricsRefreshInterval', intervalInput.value);
-      
-      // Clear existing timer if any
-      if (metricsRefreshTimer) {
-        clearInterval(metricsRefreshTimer);
-        metricsRefreshTimer = null;
+      if (savedRefreshInterval !== null) {
+        refreshIntervalInput.value = savedRefreshInterval;
       }
       
-      // Set up new timer if checked
-      if (autoRefreshCheckbox.checked) {
-        const intervalSeconds = parseInt(intervalInput.value) || 5;
-        metricsRefreshTimer = setInterval(refreshMetrics, intervalSeconds * 1000);
+      if (savedTimePeriod !== null) {
+        document.getElementById('metrics-time-period').value = savedTimePeriod;
       }
-    }
-    
-    // Update refresh interval when input changes
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('metrics-refresh-interval').addEventListener('change', function() {
-        localStorage.setItem('metricsRefreshInterval', this.value);
-        if (document.getElementById('auto-refresh-metrics').checked) {
-          toggleMetricsAutoRefresh();
+      
+      let refreshIntervalId = null;
+      
+      function updateRefreshInterval() {
+        if (refreshIntervalId) {
+          clearInterval(refreshIntervalId);
+          refreshIntervalId = null;
         }
-      });
-      
-      document.getElementById('trace-interval-input').addEventListener('change', function() {
-        localStorage.setItem('traceInterval', this.value);
-      });
-      
-      document.getElementById('log-interval-input').addEventListener('change', function() {
-        localStorage.setItem('logInterval', this.value);
-      });
-    });
-    
-    // Function to send a trace
-    async function sendTrace() {
-      // Get values from form
-      const message = document.getElementById('trace-message').value;
-      const customTag = document.getElementById('custom-tag').value;
-      const operation = document.getElementById('operation-name').value;
-      const eventMessage = document.getElementById('event-message').value;
-      
-      try {
-        const response = await fetch(`/trace?message=${encodeURIComponent(message)}&customTag=${encodeURIComponent(customTag)}&operation=${encodeURIComponent(operation)}&eventMessage=${encodeURIComponent(eventMessage)}`);
-        const data = await response.json();
         
-        // Show success message
-        const statusElement = document.getElementById('trace-status');
-        statusElement.innerHTML = `
-          <div class="status success">
-            Trace generated successfully!<br>
-            Trace ID: ${data.traceId}
-          </div>
-        `;
-        statusElement.style.display = 'block';
-        
-        // Hide status after 3 seconds
-        setTimeout(() => {
-          statusElement.style.display = 'none';
-        }, 3000);
-        
-        return data;
-      } catch (error) {
-        console.error('Error generating trace:', error);
-        
-        // Show error message
-        const statusElement = document.getElementById('trace-status');
-        statusElement.innerHTML = `
-          <div class="status error">
-            Error generating trace: ${error.message}
-          </div>
-        `;
-        statusElement.style.display = 'block';
-        
-        return null;
+        if (autoRefreshCheckbox.checked) {
+          const intervalSeconds = parseInt(refreshIntervalInput.value, 10) || 5;
+          refreshIntervalId = setInterval(refreshMetrics, intervalSeconds * 1000);
+          console.log(`Auto-refresh enabled with interval: ${intervalSeconds} seconds`);
+          
+          // Save settings to localStorage
+          localStorage.setItem('metrics-auto-refresh', 'true');
+          localStorage.setItem('metrics-refresh-interval', intervalSeconds.toString());
+        } else {
+          console.log('Auto-refresh disabled');
+          localStorage.setItem('metrics-auto-refresh', 'false');
+        }
       }
-    }
-    
-    // Auto-Tracer functions
+      
+      autoRefreshCheckbox.addEventListener('change', updateRefreshInterval);
+      refreshIntervalInput.addEventListener('change', updateRefreshInterval);
+      refreshBtn.addEventListener('click', refreshMetrics);
+      resetBtn.addEventListener('click', resetMetrics);
+      
+      // Setup time period selector
+      document.getElementById('metrics-time-period').addEventListener('change', function() {
+        localStorage.setItem('metrics-time-period', this.value);
+        refreshMetrics();
+      });
+      
+      // Initialize auto-refresh if enabled
+      updateRefreshInterval();
+    });
+
+    // Function to check Auto-Tracer status
     async function checkAutoTracerStatus() {
       try {
         const response = await fetch('/debug/autotrace/status');
         const data = await response.json();
         
-        const statusEl = document.getElementById('autotrace-status');
-        const intervalEl = document.getElementById('autotrace-interval');
-        const lastUpdatedEl = document.getElementById('autotrace-updated');
+        const statusEl = document.getElementById('auto-trace-status');
+        const statusBadge = document.getElementById('auto-trace-status-badge');
+        const intervalEl = document.getElementById('trace-interval-input');
         
         if (data.running) {
-          statusEl.textContent = 'Running';
-          statusEl.className = 'status success';
+          statusEl.textContent = 'Auto-trace is running';
+          statusEl.className = 'status active';
+          statusBadge.textContent = 'Active';
+          statusBadge.className = 'badge active';
+          intervalEl.disabled = true;
         } else {
-          statusEl.textContent = 'Stopped';
-          statusEl.className = 'status error';
+          statusEl.textContent = 'Auto-trace is not running';
+          statusEl.className = 'status inactive';
+          statusBadge.textContent = 'Inactive';
+          statusBadge.className = 'badge inactive';
+          intervalEl.disabled = false;
         }
         
-        intervalEl.textContent = `${data.interval / 1000} seconds`;
-        lastUpdatedEl.textContent = new Date().toLocaleTimeString();
-        
-        console.log('Auto-Tracer status:', data);
+        intervalEl.value = data.interval || 3000;
       } catch (error) {
         console.error('Error checking Auto-Tracer status:', error);
-        document.getElementById('autotrace-status').textContent = 'Error: ' + error.message;
-        document.getElementById('autotrace-status').className = 'status error';
+        document.getElementById('auto-trace-status').textContent = 'Error: ' + error.message;
+        document.getElementById('auto-trace-status').className = 'status error';
       }
     }
 
-    async function startAutoTracer() {
+    // Function to check Auto-Logger status
+    async function checkAutoLoggerStatus() {
       try {
-        const interval = Math.max(10, parseInt(document.getElementById('trace-interval-input').value) || 3000);
-        localStorage.setItem('traceInterval', interval);
-        
-        const response = await fetch(`/debug/autotrace/start?interval=${interval}`);
+        const response = await fetch('/debug/autolog/status');
         const data = await response.json();
         
+        const statusEl = document.getElementById('auto-log-status');
+        const statusBadge = document.getElementById('auto-log-status-badge');
+        const intervalEl = document.getElementById('log-interval-input');
+        
+        if (data.running) {
+          statusEl.textContent = 'Auto-logger is running';
+          statusEl.className = 'status active';
+          statusBadge.textContent = 'Active';
+          statusBadge.className = 'badge active';
+          intervalEl.disabled = true;
+        } else {
+          statusEl.textContent = 'Auto-logger is not running';
+          statusEl.className = 'status inactive';
+          statusBadge.textContent = 'Inactive';
+          statusBadge.className = 'badge inactive';
+          intervalEl.disabled = false;
+        }
+        
+        intervalEl.value = data.interval || 2000;
+      } catch (error) {
+        console.error('Error checking Auto-Logger status:', error);
+        document.getElementById('auto-log-status').textContent = 'Error: ' + error.message;
+        document.getElementById('auto-log-status').className = 'status error';
+      }
+    }
+
+    // Function to start Auto-Tracer
+    async function startAutoTracer() {
+      try {
+        const intervalInput = document.getElementById('trace-interval-input');
+        const interval = parseInt(intervalInput.value, 10);
+        const response = await fetch(`/debug/autotrace/start?interval=${interval}`);
+        const data = await response.json();
         console.log('Auto-Tracer started:', data);
+        
         checkAutoTracerStatus();
       } catch (error) {
         console.error('Error starting Auto-Tracer:', error);
       }
     }
 
+    // Function to stop Auto-Tracer
     async function stopAutoTracer() {
       try {
         const response = await fetch('/debug/autotrace/stop');
         const data = await response.json();
-        
         console.log('Auto-Tracer stopped:', data);
+        
         checkAutoTracerStatus();
       } catch (error) {
         console.error('Error stopping Auto-Tracer:', error);
       }
     }
-    
-    // Auto-Logger functions
-    async function checkAutoLoggerStatus() {
-      try {
-        const response = await fetch('/debug/autolog/status');
-        const data = await response.json();
-        
-        const statusEl = document.getElementById('autolog-status');
-        const intervalEl = document.getElementById('autolog-interval');
-        const lastUpdatedEl = document.getElementById('autolog-updated');
-        
-        if (data.running) {
-          statusEl.textContent = 'Running';
-          statusEl.className = 'status success';
-        } else {
-          statusEl.textContent = 'Stopped';
-          statusEl.className = 'status error';
-        }
-        
-        intervalEl.textContent = `${data.interval / 1000} seconds`;
-        lastUpdatedEl.textContent = new Date().toLocaleTimeString();
-        
-        console.log('Auto-Logger status:', data);
-      } catch (error) {
-        console.error('Error checking Auto-Logger status:', error);
-        document.getElementById('autolog-status').textContent = 'Error: ' + error.message;
-        document.getElementById('autolog-status').className = 'status error';
-      }
-    }
 
+    // Function to start Auto-Logger
     async function startAutoLogger() {
       try {
-        const interval = Math.max(10, parseInt(document.getElementById('log-interval-input').value) || 2000);
-        localStorage.setItem('logInterval', interval);
-        
+        const intervalInput = document.getElementById('log-interval-input');
+        const interval = parseInt(intervalInput.value, 10);
         const response = await fetch(`/debug/autolog/start?interval=${interval}`);
         const data = await response.json();
-        
         console.log('Auto-Logger started:', data);
+        
         checkAutoLoggerStatus();
       } catch (error) {
         console.error('Error starting Auto-Logger:', error);
       }
     }
 
+    // Function to stop Auto-Logger
     async function stopAutoLogger() {
       try {
         const response = await fetch('/debug/autolog/stop');
         const data = await response.json();
-        
         console.log('Auto-Logger stopped:', data);
+        
         checkAutoLoggerStatus();
       } catch (error) {
         console.error('Error stopping Auto-Logger:', error);
       }
     }
 
-    // Function to send a log
-    async function sendLog() {
-      // Get values from form
-      const message = document.getElementById('log-message').value;
-      const level = document.getElementById('log-level').value;
-      const context = document.getElementById('log-context').value;
-      let metadata = {};
-      
+    // Function to send a manual trace
+    async function sendManualTrace() {
       try {
-        metadata = JSON.parse(document.getElementById('log-metadata').value);
-        // Add timestamp if not present
-        if (!metadata.timestamp) {
-          metadata.timestamp = new Date().toISOString();
-        }
-        metadata.message = message;
-        metadata.context = context;
-      } catch (error) {
-        console.error('Error parsing metadata:', error);
+        const operation = document.getElementById('trace-operation-input').value;
+        const message = document.getElementById('trace-message-input').value;
+        const includeErrors = document.getElementById('trace-include-errors').checked;
         
-        // Show error message
-        const statusElement = document.getElementById('log-status');
-        statusElement.innerHTML = `
-          <div class="status error">
-            Error parsing metadata JSON: ${error.message}
-          </div>
-        `;
-        statusElement.style.display = 'block';
-        return;
+        // Parse custom payload if provided
+        let customPayload = {};
+        const customPayloadText = document.getElementById('trace-custom-payload').value;
+        if (customPayloadText.trim()) {
+          try {
+            customPayload = JSON.parse(customPayloadText);
+          } catch (jsonError) {
+            console.error('Invalid JSON payload:', jsonError);
+            const resultEl = document.getElementById('trace-result');
+            resultEl.textContent = `Error: Invalid JSON in payload - ${jsonError.message}`;
+            resultEl.className = 'status error';
+            resultEl.style.display = 'block';
+            return;
+          }
+        }
+        
+        // Create the request payload
+        const payload = {
+          operation: includeErrors ? `${operation}_error` : operation,
+          message,
+          ...customPayload
+        };
+        
+        console.log('Sending trace with payload:', payload);
+        
+        const response = await fetch('/debug/trace', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        console.log('Manual trace response:', data);
+        
+        const resultEl = document.getElementById('trace-result');
+        if (data.statusCode === 500 || data.status === 'error') {
+          resultEl.textContent = `Error: ${data.message || 'Server error'}`;
+          resultEl.className = 'status error';
+        } else {
+          resultEl.textContent = `Trace sent successfully! Trace ID: ${data.traceId || 'unknown'}`;
+          resultEl.className = 'status success';
+        }
+        resultEl.style.display = 'block';
+        
+        // Refresh metrics
+        setTimeout(refreshMetrics, 500);
+      } catch (error) {
+        console.error('Error sending manual trace:', error);
+        
+        const resultEl = document.getElementById('trace-result');
+        resultEl.textContent = `Error: ${error.message}`;
+        resultEl.className = 'status error';
+        resultEl.style.display = 'block';
       }
-      
+    }
+    
+    // Function to send a manual log
+    async function sendManualLog() {
       try {
+        const level = document.getElementById('log-level-input').value;
+        const message = document.getElementById('log-message-input').value;
+        const context = document.getElementById('log-context-input').value;
+        
         const response = await fetch('/debug/log', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message,
             level,
-            context,
-            metadata
+            message,
+            context
           })
         });
         
         const data = await response.json();
+        console.log('Manual log sent:', data);
         
-        // Show success message
-        const statusElement = document.getElementById('log-status');
-        statusElement.innerHTML = `
-          <div class="status success">
-            Log generated successfully!
-          </div>
-        `;
-        statusElement.style.display = 'block';
-        
-        // Hide status after 3 seconds
-        setTimeout(() => {
-          statusElement.style.display = 'none';
-        }, 3000);
+        const resultEl = document.getElementById('log-result');
+        resultEl.textContent = 'Log sent successfully!';
+        resultEl.className = 'status success';
+        resultEl.style.display = 'block';
         
         // Refresh metrics
-        refreshMetrics();
-        
-        return data;
+        setTimeout(refreshMetrics, 500);
       } catch (error) {
-        console.error('Error generating log:', error);
+        console.error('Error sending manual log:', error);
         
-        // Show error message
-        const statusElement = document.getElementById('log-status');
-        statusElement.innerHTML = `
-          <div class="status error">
-            Error generating log: ${error.message}
-          </div>
-        `;
-        statusElement.style.display = 'block';
-        
-        return null;
+        const resultEl = document.getElementById('log-result');
+        resultEl.textContent = `Error: ${error.message}`;
+        resultEl.className = 'status error';
+        resultEl.style.display = 'block';
       }
     }
-    
+
     // Refresh metrics data from API
     async function refreshMetrics() {
       try {
-        // Fetch trace metrics
-        const traceResponse = await fetch('/debug/traces');
-        const traceData = await traceResponse.json();
+        // Get time period in minutes
+        const timePeriodEl = document.getElementById('metrics-time-period');
+        const timePeriodMinutes = parseInt(timePeriodEl.value, 10);
+        console.log(`Refreshing metrics with time period: ${timePeriodMinutes} minutes`);
         
-        // Calculate average duration
-        let totalDuration = 0;
-        if (traceData.traces && traceData.traces.length > 0) {
-          totalDuration = traceData.traces.reduce((sum, trace) => sum + trace.durationMs, 0);
+        // Calculate since parameter if time period > 0
+        let sinceParam = '';
+        if (timePeriodMinutes > 0) {
+          const sinceDate = new Date();
+          sinceDate.setMinutes(sinceDate.getMinutes() - timePeriodMinutes);
+          sinceParam = `since=${sinceDate.toISOString()}`;
         }
-        const avgDuration = traceData.traces.length > 0 ? 
-          Math.round(totalDuration / traceData.traces.length) : 0;
         
-        // Update trace metrics
-        document.getElementById('total-traces').textContent = traceData.total;
-        document.getElementById('avg-duration').textContent = `${avgDuration} ms`;
+        // Fetch trace statistics
+        const traceStatsResponse = await fetch(`/debug/traces/stats${sinceParam ? '?' + sinceParam : ''}`);
+        const traceStats = await traceStatsResponse.json();
         
-        // Fetch log metrics
-        const logResponse = await fetch('/debug/logs?limit=1');
-        const logData = await logResponse.json();
+        // Fetch logs data (not using /logs/stats since it's not implemented)
+        let totalLogs = 0;
+        let errorLogs = 0;
+        let logsData = { total: 0, logs: [] };
         
-        // Fetch error logs count
-        const errorResponse = await fetch('/debug/logs?level=error&limit=1');
-        const errorData = await errorResponse.json();
+        try {
+          const logsResponse = await fetch(`/debug/logs${sinceParam ? '?' + sinceParam : ''}&limit=0`);
+          if (logsResponse.ok) {
+            logsData = await logsResponse.json();
+            totalLogs = logsData.total || 0;
+            
+            // Count error logs only
+            errorLogs = (logsData.logs || []).filter(log => log.level === 'error').length;
+          }
+        } catch (logError) {
+          console.error('Error fetching logs:', logError);
+        }
         
-        // Update log metrics
-        document.getElementById('total-logs').textContent = logData.total;
-        document.getElementById('error-logs').textContent = errorData.total;
+        // Update metrics display
+        document.getElementById('trace-count').textContent = traceStats.totalTraces || 0;
+        document.getElementById('log-count').textContent = totalLogs;
+        document.getElementById('error-count').textContent = errorLogs;
+        
+        // Calculate auto-generated traces and logs (approximation based on operation/context)
+        const autoTraceCount = Object.keys(traceStats.tracesPerOperation || {})
+          .filter(op => op.includes('auto') || op.includes('synthetic'))
+          .reduce((sum, op) => sum + (traceStats.tracesPerOperation[op] || 0), 0);
+          
+        // Get logs with auto or Application context
+        const autoLogContext = ['auto', 'Application'];
+        const autoLogCount = (logsData?.logs || [])
+          .filter(log => log.context && autoLogContext.some(ctx => log.context.includes(ctx)))
+          .length;
+        
+        document.getElementById('auto-trace-count').textContent = autoTraceCount;
+        document.getElementById('auto-log-count').textContent = autoLogCount;
       } catch (error) {
         console.error('Error fetching metrics:', error);
       }
+    }
+
+    // Function to reset metrics
+    async function resetMetrics() {
+      if (confirm('Are you sure you want to reset all metrics? This will reset running counters but keep trace and log data.')) {
+        try {
+          // Reset trace statistics
+          const traceResponse = await fetch('/debug/traces/stats/reset', {
+            method: 'POST'
+          });
+          const traceData = await traceResponse.json();
+          console.log('Trace statistics reset:', traceData);
+          
+          // Reset log statistics
+          const logResponse = await fetch('/debug/logs/stats/reset', {
+            method: 'POST'
+          });
+          const logData = await logResponse.json();
+          console.log('Log statistics reset:', logData);
+          
+          // Refresh metrics to show updated values
+          refreshMetrics();
+          
+          alert('Metrics have been reset successfully.');
+        } catch (error) {
+          console.error('Error resetting metrics:', error);
+          alert('Failed to reset metrics. Check console for details.');
+        }
+      }
+    }
+
+    // Function to reset trace payload to default
+    function resetTracePayload() {
+      const defaultPayload = {
+        user_id: "user-123",
+        source: "manual-test",
+        priority: "high",
+        attributes: {
+          test_run: true,
+          component: "api"
+        }
+      };
+      
+      document.getElementById('trace-custom-payload').value = JSON.stringify(defaultPayload, null, 2);
+      document.getElementById('trace-include-errors').checked = false;
     }
   </script>
 </body>

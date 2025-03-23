@@ -10,11 +10,21 @@ import { join } from 'path';
 export class LogService {
   private logHistory: any[] = [];
   private readonly LOG_FILE_PATH = process.env.LOG_STORAGE_PATH || join(process.cwd(), 'logs-storage.json');
+  private readonly MAX_HISTORY_SIZE = 1000; // Maximum number of logs to keep in memory
+  private readonly MAX_AGE_DAYS = 7; // Maximum age for stored logs (7 days)
+  
+  // Running tallies for statistics
+  private totalLogCount = 0;
+  private totalLogsPerLevel: Record<string, number> = { debug: 0, info: 0, warn: 0, error: 0 };
+  private totalLogsPerContext: Record<string, number> = {};
+  private totalLogsPerDay: Record<string, number> = {};
+  private statsLastReset = new Date().toISOString();
 
   constructor() {
     // Try to load logs from the file if it exists
     console.log(`LogService initialized with storage path: ${this.LOG_FILE_PATH}`);
     this.loadLogsFromFile();
+    this.loadStatsFromFile();
   }
 
   /**
@@ -26,6 +36,9 @@ export class LogService {
         const fileData = fs.readFileSync(this.LOG_FILE_PATH, 'utf8');
         this.logHistory = JSON.parse(fileData);
         console.log(`Loaded ${this.logHistory.length} logs from storage file`);
+        
+        // Perform date-based pruning after loading
+        this.pruneOldLogs();
       } else {
         console.log('No logs storage file found, starting with empty log history');
       }
@@ -35,14 +48,94 @@ export class LogService {
   }
 
   /**
+   * Load statistics from file
+   */
+  private loadStatsFromFile() {
+    try {
+      const statsFilePath = this.LOG_FILE_PATH.replace('.json', '-stats.json');
+      if (fs.existsSync(statsFilePath)) {
+        const fileData = fs.readFileSync(statsFilePath, 'utf8');
+        const stats = JSON.parse(fileData);
+        this.totalLogCount = stats.totalLogCount || 0;
+        this.totalLogsPerLevel = stats.totalLogsPerLevel || { debug: 0, info: 0, warn: 0, error: 0 };
+        this.totalLogsPerContext = stats.totalLogsPerContext || {};
+        this.totalLogsPerDay = stats.totalLogsPerDay || {};
+        this.statsLastReset = stats.statsLastReset || new Date().toISOString();
+        console.log(`Loaded log statistics: ${this.totalLogCount} total logs`);
+      }
+    } catch (error) {
+      console.error('Error loading log statistics:', error);
+    }
+  }
+
+  /**
    * Save logs to file
    */
   private saveLogsToFile() {
     try {
-      fs.writeFileSync(this.LOG_FILE_PATH, JSON.stringify(this.logHistory.slice(0, 1000)), 'utf8');
+      fs.writeFileSync(this.LOG_FILE_PATH, JSON.stringify(this.logHistory), 'utf8');
+      
+      // Save statistics to a separate file
+      const statsFilePath = this.LOG_FILE_PATH.replace('.json', '-stats.json');
+      const stats = {
+        totalLogCount: this.totalLogCount,
+        totalLogsPerLevel: this.totalLogsPerLevel,
+        totalLogsPerContext: this.totalLogsPerContext,
+        totalLogsPerDay: this.totalLogsPerDay,
+        statsLastReset: this.statsLastReset
+      };
+      fs.writeFileSync(statsFilePath, JSON.stringify(stats), 'utf8');
     } catch (error) {
       console.error('Error saving logs to file:', error);
     }
+  }
+
+  /**
+   * Remove logs older than MAX_AGE_DAYS
+   */
+  private pruneOldLogs() {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - this.MAX_AGE_DAYS);
+    
+    const originalLength = this.logHistory.length;
+    this.logHistory = this.logHistory.filter(log => {
+      try {
+        const logDate = new Date(log.timestamp);
+        return logDate >= cutoffDate;
+      } catch (e) {
+        return true; // Keep logs with invalid dates
+      }
+    });
+    
+    const prunedCount = originalLength - this.logHistory.length;
+    if (prunedCount > 0) {
+      console.log(`Pruned ${prunedCount} logs older than ${this.MAX_AGE_DAYS} days`);
+      this.saveLogsToFile();
+    }
+  }
+
+  /**
+   * Update the running statistics
+   */
+  private updateStatistics(logData: any) {
+    // Increment total count
+    this.totalLogCount++;
+    
+    // Increment level count
+    if (logData.level) {
+      this.totalLogsPerLevel[logData.level] = 
+        (this.totalLogsPerLevel[logData.level] || 0) + 1;
+    }
+    
+    // Increment context count
+    if (logData.context) {
+      this.totalLogsPerContext[logData.context] = 
+        (this.totalLogsPerContext[logData.context] || 0) + 1;
+    }
+    
+    // Increment daily count
+    const day = logData.timestamp.split('T')[0]; // YYYY-MM-DD
+    this.totalLogsPerDay[day] = (this.totalLogsPerDay[day] || 0) + 1;
   }
 
   /**
@@ -177,21 +270,30 @@ export class LogService {
       service: 'nestjs-opentelemetry-example'
     };
     
+    // Update statistics
+    this.updateStatistics(logData);
+    
+    // Add to history using queue approach (oldest logs at the end)
     this.logHistory.unshift(logData);
     
-    // Keep only the last 1000 logs
-    if (this.logHistory.length > 1000) {
-      this.logHistory = this.logHistory.slice(0, 1000);
+    // Apply size limit to history
+    if (this.logHistory.length > this.MAX_HISTORY_SIZE) {
+      this.logHistory.pop(); // Remove oldest log (from the end)
     }
     
-    // Save to file every 10 logs
-    if (this.logHistory.length % 10 === 0) {
+    // Periodically run date-based pruning (every 100 logs)
+    if (this.totalLogCount % 100 === 0) {
+      this.pruneOldLogs();
+    }
+    
+    // Save to file periodically (every 10 logs)
+    if (this.totalLogCount % 10 === 0) {
       this.saveLogsToFile();
     }
     
     // Debug log count
-    if (this.logHistory.length % 10 === 0) {
-      console.log(`Log history now contains ${this.logHistory.length} entries`);
+    if (this.totalLogCount % 100 === 0) {
+      console.log(`Log history: ${this.logHistory.length} stored, ${this.totalLogCount} total`);
     }
     
     return logData;
@@ -202,5 +304,51 @@ export class LogService {
    */
   getLogHistory() {
     return this.logHistory;
+  }
+  
+  /**
+   * Get log statistics
+   */
+  getLogStatistics() {
+    return {
+      totalLogs: this.totalLogCount,
+      storedLogs: this.logHistory.length,
+      logsPerLevel: this.totalLogsPerLevel,
+      logsPerContext: this.totalLogsPerContext,
+      logsPerDay: this.totalLogsPerDay,
+      statsLastReset: this.statsLastReset
+    };
+  }
+
+  /**
+   * Reset log statistics
+   */
+  resetLogStatistics() {
+    this.totalLogCount = this.logHistory.length;
+    this.totalLogsPerLevel = { debug: 0, info: 0, warn: 0, error: 0 };
+    this.totalLogsPerContext = {};
+    this.totalLogsPerDay = {};
+    this.statsLastReset = new Date().toISOString();
+    
+    // Rebuild statistics from current logs
+    this.logHistory.forEach(log => {
+      if (log.level) {
+        this.totalLogsPerLevel[log.level] = 
+          (this.totalLogsPerLevel[log.level] || 0) + 1;
+      }
+      
+      if (log.context) {
+        this.totalLogsPerContext[log.context] = 
+          (this.totalLogsPerContext[log.context] || 0) + 1;
+      }
+      
+      if (log.timestamp) {
+        const day = log.timestamp.split('T')[0]; // YYYY-MM-DD
+        this.totalLogsPerDay[day] = (this.totalLogsPerDay[day] || 0) + 1;
+      }
+    });
+    
+    this.saveLogsToFile();
+    return this.getLogStatistics();
   }
 } 

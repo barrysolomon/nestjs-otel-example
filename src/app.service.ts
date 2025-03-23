@@ -40,13 +40,9 @@ export class AppService {
     operation = operation || 'default-operation';
     eventMessage = eventMessage || 'Event message';
     
-    // Generate trace
-    const result = this.traceService.generateTrace(
-      message,
-      customTag,
-      operation,
-      eventMessage
-    );
+    // Generate trace with operation only
+    const operationWithContext = `${operation}_${customTag}_${message.substring(0, 10)}`;
+    const result = this.traceService.generateTrace(operationWithContext);
 
     return {
       traceId: result.traceId,
@@ -75,12 +71,8 @@ export class AppService {
     const logParams = this.queryParserService.extractLogParams(queryParams);
     
     // Generate trace
-    const result = this.traceService.generateTrace(
-      traceParams.message,
-      traceParams.customTag,
-      traceParams.operation,
-      traceParams.eventMessage
-    );
+    const operationWithContext = `${traceParams.operation}_${traceParams.customTag}_${traceParams.message.substring(0, 10)}`;
+    const result = this.traceService.generateTrace(operationWithContext);
 
     // Generate HTML UI
     return this.templateService.generateTraceEditorUI(

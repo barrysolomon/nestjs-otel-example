@@ -371,132 +371,156 @@
           </div>
         </div>
         
-        <div class="form-group" style="text-align: right; margin-top: 1rem;">
-          <button class="btn btn-secondary" onclick="refreshMetrics()">Refresh Metrics</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="auto-refresh-metrics" />
+            <label for="auto-refresh-metrics" style="margin-bottom: 0;">Auto-refresh</label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+              <input type="number" id="metrics-refresh-interval" style="width: 80px;" min="1" value="5" />
+              <span>seconds</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary" onclick="refreshMetrics()">Refresh Now</button>
         </div>
       </div>
       
+      <!-- Trace Generation Card -->
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Trace Generator</h3>
+          <h3 class="card-title">Trace Generation</h3>
         </div>
-        
-        <div class="form-group">
-          <label for="trace-message">Message</label>
-          <input type="text" id="trace-message" placeholder="Enter a message to include in the trace" value="Test Trace" />
+        <div class="card-body">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="width: 50%; padding: 0.75rem; vertical-align: top;">
+                <h4 style="margin-bottom: 1rem; color: #4b5563;">Manual Trace Generator</h4>
+                <div class="form-group">
+                  <label for="trace-message">Message</label>
+                  <input type="text" id="trace-message" placeholder="Enter a message to include in the trace" value="Test Trace" />
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="custom-tag">Custom Tag</label>
+                    <input type="text" id="custom-tag" placeholder="tag-name=tag-value" value="custom-tag=demo-value" />
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="operation-name">Operation Name</label>
+                    <input type="text" id="operation-name" placeholder="Operation name" value="manual-operation" />
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="event-message">Event Message</label>
+                  <input type="text" id="event-message" placeholder="Enter an event message (optional)" value="Custom Event" />
+                </div>
+                
+                <div class="form-group" style="text-align: right;">
+                  <button class="btn" onclick="sendTrace()">Generate Trace</button>
+                </div>
+                
+                <div id="trace-status" style="display: none;"></div>
+              </td>
+              <td style="width: 50%; padding: 0.75rem; vertical-align: top; border-left: 1px solid #e2e8f0;">
+                <h4 style="margin-bottom: 1rem; color: #4b5563;">Auto-Trace Control</h4>
+                <div class="status" id="autotrace-status">Loading...</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
+                  <span>Interval: <span id="autotrace-interval">-</span></span>
+                  <span>Last Updated: <span id="autotrace-updated">-</span></span>
+                </div>
+                
+                <div style="margin: 1rem 0;">
+                  <label for="trace-interval-input">Interval (ms):</label>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="number" id="trace-interval-input" min="10" value="3000" style="max-width: 150px;" />
+                    <small style="color: #64748b;">(Min: 10ms)</small>
+                  </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                  <button id="startAutotrace" class="btn" style="flex: 1;">Start</button>
+                  <button id="stopAutotrace" class="btn btn-secondary" style="flex: 1;">Stop</button>
+                  <button id="checkTraceStatus" class="btn btn-secondary" style="flex: 1;">Refresh</button>
+                </div>
+              </td>
+            </tr>
+          </table>
         </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label for="custom-tag">Custom Tag</label>
-            <input type="text" id="custom-tag" placeholder="tag-name=tag-value" value="custom-tag=demo-value" />
-          </div>
-          
-          <div class="form-group">
-            <label for="operation-name">Operation Name</label>
-            <input type="text" id="operation-name" placeholder="Operation name" value="manual-operation" />
-          </div>
-        </div>
-        
-        <div class="form-group">
-          <label for="event-message">Event Message</label>
-          <input type="text" id="event-message" placeholder="Enter an event message (optional)" value="Custom Event" />
-        </div>
-        
-        <div class="form-group" style="text-align: right;">
-          <button class="btn" onclick="sendTrace()">Generate Trace</button>
-        </div>
-        
-        <div id="trace-status" style="display: none;"></div>
       </div>
       
-      <!-- Auto-Trace Control Card -->
+      <!-- Log Generation Card -->
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Auto-Trace Control</h3>
+          <h3 class="card-title">Log Generation</h3>
         </div>
         <div class="card-body">
-          <p>The Auto-Tracer periodically sends trace messages at regular intervals.</p>
-          <div class="mb-3">
-            <div class="status" id="autotrace-status">Loading...</div>
-            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
-              <span>Interval: <span id="autotrace-interval">-</span></span>
-              <span>Last Updated: <span id="autotrace-updated">-</span></span>
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <button id="startAutotrace" class="btn">Start Auto-Tracer</button>
-            <button id="stopAutotrace" class="btn btn-secondary">Stop Auto-Tracer</button>
-            <button id="checkTraceStatus" class="btn btn-secondary">Refresh Status</button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Auto-Logger Control Card -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Auto-Logger Control</h3>
-        </div>
-        <div class="card-body">
-          <p>The Auto-Logger periodically sends log messages at regular intervals.</p>
-          <div class="mb-3">
-            <div class="status" id="autolog-status">Loading...</div>
-            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
-              <span>Interval: <span id="autolog-interval">-</span></span>
-              <span>Last Updated: <span id="autolog-updated">-</span></span>
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <button id="startAutolog" class="btn">Start Auto-Logger</button>
-            <button id="stopAutolog" class="btn btn-secondary">Stop Auto-Logger</button>
-            <button id="checkStatus" class="btn btn-secondary">Refresh Status</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Log Generator Card -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Log Generator</h3>
-        </div>
-        <div class="card-body">
-          <div class="form-group">
-            <label for="log-message">Message</label>
-            <input type="text" id="log-message" placeholder="Enter a message to include in the log" value="Test Log" />
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label for="log-level">Log Level</label>
-              <select id="log-level">
-                <option value="info" selected>Info</option>
-                <option value="warn">Warning</option>
-                <option value="error">Error</option>
-                <option value="debug">Debug</option>
-              </select>
-            </div>
-            
-            <div class="form-group">
-              <label for="log-context">Context</label>
-              <input type="text" id="log-context" placeholder="Context for the log" value="manual-log" />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label for="log-metadata">Metadata (JSON)</label>
-            <textarea id="log-metadata" rows="3" placeholder='{"key": "value"}'>{
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="width: 50%; padding: 0.75rem; vertical-align: top;">
+                <h4 style="margin-bottom: 1rem; color: #4b5563;">Manual Log Generator</h4>
+                <div class="form-group">
+                  <label for="log-message">Message</label>
+                  <input type="text" id="log-message" placeholder="Enter a message to include in the log" value="Test Log" />
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="log-level">Log Level</label>
+                    <select id="log-level">
+                      <option value="info" selected>Info</option>
+                      <option value="warn">Warning</option>
+                      <option value="error">Error</option>
+                      <option value="debug">Debug</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="log-context">Context</label>
+                    <input type="text" id="log-context" placeholder="Context for the log" value="manual-log" />
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label for="log-metadata">Metadata (JSON)</label>
+                  <textarea id="log-metadata" rows="3" placeholder='{"key": "value"}'>{
   "userId": "user-123",
   "action": "manual-log",
   "timestamp": "",
   "source": "dashboard"
 }</textarea>
-          </div>
-          
-          <div class="form-group" style="text-align: right;">
-            <button class="btn" onclick="sendLog()">Generate Log</button>
-          </div>
-          
-          <div id="log-status" style="display: none;"></div>
+                </div>
+                
+                <div class="form-group" style="text-align: right;">
+                  <button class="btn" onclick="sendLog()">Generate Log</button>
+                </div>
+                
+                <div id="log-status" style="display: none;"></div>
+              </td>
+              <td style="width: 50%; padding: 0.75rem; vertical-align: top; border-left: 1px solid #e2e8f0;">
+                <h4 style="margin-bottom: 1rem; color: #4b5563;">Auto-Log Control</h4>
+                <div class="status" id="autolog-status">Loading...</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;">
+                  <span>Interval: <span id="autolog-interval">-</span></span>
+                  <span>Last Updated: <span id="autolog-updated">-</span></span>
+                </div>
+                
+                <div style="margin: 1rem 0;">
+                  <label for="log-interval-input">Interval (ms):</label>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="number" id="log-interval-input" min="10" value="2000" style="max-width: 150px;" />
+                    <small style="color: #64748b;">(Min: 10ms)</small>
+                  </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                  <button id="startAutolog" class="btn" style="flex: 1;">Start</button>
+                  <button id="stopAutolog" class="btn btn-secondary" style="flex: 1;">Stop</button>
+                  <button id="checkStatus" class="btn btn-secondary" style="flex: 1;">Refresh</button>
+                </div>
+              </td>
+            </tr>
+          </table>
         </div>
       </div>
     </main>
@@ -533,12 +557,76 @@
       document.getElementById('stopAutolog').addEventListener('click', stopAutoLogger);
       document.getElementById('checkStatus').addEventListener('click', checkAutoLoggerStatus);
 
+      // Set up auto-refresh metrics
+      const autoRefreshCheckbox = document.getElementById('auto-refresh-metrics');
+      autoRefreshCheckbox.addEventListener('change', toggleMetricsAutoRefresh);
+      
+      // Load auto-refresh settings from localStorage
+      if (localStorage.getItem('metricsAutoRefresh') === 'true') {
+        autoRefreshCheckbox.checked = true;
+        toggleMetricsAutoRefresh();
+      }
+      
+      // Load interval values from localStorage
+      if (localStorage.getItem('metricsRefreshInterval')) {
+        document.getElementById('metrics-refresh-interval').value = localStorage.getItem('metricsRefreshInterval');
+      }
+      if (localStorage.getItem('traceInterval')) {
+        document.getElementById('trace-interval-input').value = localStorage.getItem('traceInterval');
+      }
+      if (localStorage.getItem('logInterval')) {
+        document.getElementById('log-interval-input').value = localStorage.getItem('logInterval');
+      }
+
       // Check statuses when page loads
       checkAutoTracerStatus();
       checkAutoLoggerStatus();
       
       // Load metrics when page loads
       refreshMetrics();
+    });
+    
+    // Variables for interval timers
+    let metricsRefreshTimer = null;
+    
+    // Toggle auto-refresh for metrics
+    function toggleMetricsAutoRefresh() {
+      const autoRefreshCheckbox = document.getElementById('auto-refresh-metrics');
+      const intervalInput = document.getElementById('metrics-refresh-interval');
+      
+      // Save settings to localStorage
+      localStorage.setItem('metricsAutoRefresh', autoRefreshCheckbox.checked);
+      localStorage.setItem('metricsRefreshInterval', intervalInput.value);
+      
+      // Clear existing timer if any
+      if (metricsRefreshTimer) {
+        clearInterval(metricsRefreshTimer);
+        metricsRefreshTimer = null;
+      }
+      
+      // Set up new timer if checked
+      if (autoRefreshCheckbox.checked) {
+        const intervalSeconds = parseInt(intervalInput.value) || 5;
+        metricsRefreshTimer = setInterval(refreshMetrics, intervalSeconds * 1000);
+      }
+    }
+    
+    // Update refresh interval when input changes
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('metrics-refresh-interval').addEventListener('change', function() {
+        localStorage.setItem('metricsRefreshInterval', this.value);
+        if (document.getElementById('auto-refresh-metrics').checked) {
+          toggleMetricsAutoRefresh();
+        }
+      });
+      
+      document.getElementById('trace-interval-input').addEventListener('change', function() {
+        localStorage.setItem('traceInterval', this.value);
+      });
+      
+      document.getElementById('log-interval-input').addEventListener('change', function() {
+        localStorage.setItem('logInterval', this.value);
+      });
     });
     
     // Function to send a trace
@@ -616,7 +704,10 @@
 
     async function startAutoTracer() {
       try {
-        const response = await fetch('/debug/autotrace/start');
+        const interval = Math.max(10, parseInt(document.getElementById('trace-interval-input').value) || 3000);
+        localStorage.setItem('traceInterval', interval);
+        
+        const response = await fetch(`/debug/autotrace/start?interval=${interval}`);
         const data = await response.json();
         
         console.log('Auto-Tracer started:', data);
@@ -669,7 +760,10 @@
 
     async function startAutoLogger() {
       try {
-        const response = await fetch('/debug/autolog/start');
+        const interval = Math.max(10, parseInt(document.getElementById('log-interval-input').value) || 2000);
+        localStorage.setItem('logInterval', interval);
+        
+        const response = await fetch(`/debug/autolog/start?interval=${interval}`);
         const data = await response.json();
         
         console.log('Auto-Logger started:', data);

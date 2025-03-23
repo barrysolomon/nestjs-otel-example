@@ -30,7 +30,8 @@ enum LogSeverity {
 @Injectable()
 export class AutoLoggerService implements OnApplicationBootstrap, OnApplicationShutdown {
   private intervalId: NodeJS.Timeout | null = null;
-  private readonly LOG_INTERVAL_MS = 2000; // Generate logs every 2 seconds
+  private logIntervalMs = 2000; // Default: Generate logs every 2 seconds
+  private readonly MIN_INTERVAL_MS = 10; // Minimum allowed interval is 10ms
   
   // Weights for random distribution - higher numbers mean more frequent occurrence
   private readonly SEVERITY_WEIGHTS = {
@@ -78,22 +79,46 @@ export class AutoLoggerService implements OnApplicationBootstrap, OnApplicationS
    * Get the current interval in milliseconds
    */
   getInterval(): number {
-    return this.LOG_INTERVAL_MS;
+    return this.logIntervalMs;
+  }
+
+  /**
+   * Set the interval for log generation (minimum 10ms)
+   * @param intervalMs interval in milliseconds
+   */
+  setInterval(intervalMs: number): void {
+    // Ensure interval is not less than minimum allowed
+    this.logIntervalMs = Math.max(this.MIN_INTERVAL_MS, intervalMs);
+    
+    // If already running, restart with new interval
+    if (this.isRunning()) {
+      this.stopLogGeneration();
+      this.startLogGeneration();
+    }
+    
+    log.info(`Auto Logger interval set to ${this.logIntervalMs}ms`);
   }
 
   /**
    * Start the automatic log generation at fixed intervals
+   * @param intervalMs optional interval in milliseconds
    */
-  startLogGeneration() {
+  startLogGeneration(intervalMs?: number): void {
+    // Set new interval if provided
+    if (intervalMs !== undefined) {
+      this.setInterval(intervalMs);
+    }
+    
+    // Stop if already running
     if (this.intervalId) {
-      return; // Already running
+      this.stopLogGeneration();
     }
 
     this.intervalId = setInterval(() => {
       this.generateRandomLog();
-    }, this.LOG_INTERVAL_MS);
+    }, this.logIntervalMs);
 
-    log.info(`Auto Logger started - Generating logs every ${this.LOG_INTERVAL_MS / 1000} seconds`);
+    log.info(`Auto Logger started - Generating logs every ${this.logIntervalMs / 1000} seconds`);
   }
 
   /**

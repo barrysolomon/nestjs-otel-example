@@ -20,7 +20,8 @@ enum TraceType {
 @Injectable()
 export class AutoTraceService implements OnApplicationBootstrap, OnApplicationShutdown {
   private intervalId: NodeJS.Timeout | null = null;
-  private readonly TRACE_INTERVAL_MS = 3000; // Generate traces every 3 seconds
+  private traceIntervalMs = 3000; // Default: Generate traces every 3 seconds
+  private readonly MIN_INTERVAL_MS = 10; // Minimum allowed interval is 10ms
   
   // Weights for random distribution - higher numbers mean more frequent occurrence
   private readonly TRACE_TYPE_WEIGHTS = {
@@ -61,22 +62,46 @@ export class AutoTraceService implements OnApplicationBootstrap, OnApplicationSh
    * Get the current interval in milliseconds
    */
   getInterval(): number {
-    return this.TRACE_INTERVAL_MS;
+    return this.traceIntervalMs;
+  }
+
+  /**
+   * Set the interval for trace generation (minimum 10ms)
+   * @param intervalMs interval in milliseconds
+   */
+  setInterval(intervalMs: number): void {
+    // Ensure interval is not less than minimum allowed
+    this.traceIntervalMs = Math.max(this.MIN_INTERVAL_MS, intervalMs);
+    
+    // If already running, restart with new interval
+    if (this.isRunning()) {
+      this.stopTraceGeneration();
+      this.startTraceGeneration();
+    }
+    
+    log.info(`Auto Tracer interval set to ${this.traceIntervalMs}ms`);
   }
 
   /**
    * Start the automatic trace generation at fixed intervals
+   * @param intervalMs optional interval in milliseconds
    */
-  startTraceGeneration() {
+  startTraceGeneration(intervalMs?: number): void {
+    // Set new interval if provided
+    if (intervalMs !== undefined) {
+      this.setInterval(intervalMs);
+    }
+    
+    // Stop if already running
     if (this.intervalId) {
-      return; // Already running
+      this.stopTraceGeneration();
     }
 
     this.intervalId = setInterval(() => {
       this.generateRandomTrace();
-    }, this.TRACE_INTERVAL_MS);
+    }, this.traceIntervalMs);
 
-    log.info(`Auto Tracer started - Generating traces every ${this.TRACE_INTERVAL_MS / 1000} seconds`);
+    log.info(`Auto Tracer started - Generating traces every ${this.traceIntervalMs / 1000} seconds`);
   }
 
   /**

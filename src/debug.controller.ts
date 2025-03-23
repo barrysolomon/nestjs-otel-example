@@ -45,11 +45,13 @@ export class DebugController {
     }
     
     @Get('autolog/start')
-    startAutoLogging() {
-        this.autoLoggerService.startLogGeneration();
+    startAutoLogging(@Query('interval') intervalMs?: string) {
+        const interval = intervalMs ? parseInt(intervalMs) : undefined;
+        this.autoLoggerService.startLogGeneration(interval);
         return {
             status: 'success',
             message: 'Auto logging started',
+            interval: this.autoLoggerService.getInterval(),
             timestamp: new Date().toISOString()
         };
     }
@@ -74,11 +76,13 @@ export class DebugController {
     }
     
     @Get('autotrace/start')
-    startAutoTracing() {
-        this.autoTraceService.startTraceGeneration();
+    startAutoTracing(@Query('interval') intervalMs?: string) {
+        const interval = intervalMs ? parseInt(intervalMs) : undefined;
+        this.autoTraceService.startTraceGeneration(interval);
         return {
             status: 'success',
             message: 'Auto trace generation started',
+            interval: this.autoTraceService.getInterval(),
             timestamp: new Date().toISOString()
         };
     }

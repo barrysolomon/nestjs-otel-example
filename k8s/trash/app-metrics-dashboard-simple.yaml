@@ -1,19 +1,33 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: app-metrics-dashboard
+  name: app-metrics-dashboard-simple
   namespace: observability
   labels:
-    grafana_dashboard: "1"
+    grafana_datasource: "1"
 data:
-  app-metrics-dashboard.json: |
+  app-metrics-simple.json: |-
     {
       "annotations": {
-        "list": []
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
       },
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
+      "id": 5,
       "links": [],
       "liveNow": false,
       "panels": [
@@ -34,7 +48,7 @@ data:
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 30,
+                "fillOpacity": 0,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -42,7 +56,7 @@ data:
                   "viz": false
                 },
                 "lineInterpolation": "linear",
-                "lineWidth": 2,
+                "lineWidth": 1,
                 "pointSize": 5,
                 "scaleDistribution": {
                   "type": "linear"
@@ -64,15 +78,18 @@ data:
                   {
                     "color": "green",
                     "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
                   }
                 ]
-              },
-              "unit": "ops"
+              }
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 9,
+            "h": 8,
             "w": 12,
             "x": 0,
             "y": 0
@@ -80,8 +97,8 @@ data:
           "id": 1,
           "options": {
             "legend": {
-              "calcs": ["mean", "max", "lastNotNull"],
-              "displayMode": "table",
+              "calcs": [],
+              "displayMode": "list",
               "placement": "bottom",
               "showLegend": true
             },
@@ -90,6 +107,8 @@ data:
               "sort": "none"
             }
           },
+          "title": "HTTP Request Rate",
+          "type": "timeseries",
           "targets": [
             {
               "datasource": {
@@ -97,14 +116,12 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "otel_api_calls_total{job=\"otel-collector\"}",
-              "instant": false,
+              "expr": "rate(http_server_duration_count{service_name=\"nestjs-app\"}[1m])",
+              "legendFormat": "{{http_route}}",
               "range": true,
               "refId": "A"
             }
-          ],
-          "title": "API Calls (Total)",
-          "type": "timeseries"
+          ]
         },
         {
           "datasource": {
@@ -123,7 +140,7 @@ data:
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 30,
+                "fillOpacity": 0,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -131,7 +148,7 @@ data:
                   "viz": false
                 },
                 "lineInterpolation": "linear",
-                "lineWidth": 2,
+                "lineWidth": 1,
                 "pointSize": 5,
                 "scaleDistribution": {
                   "type": "linear"
@@ -153,15 +170,19 @@ data:
                   {
                     "color": "green",
                     "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
                   }
                 ]
               },
-              "unit": "reqps"
+              "unit": "s"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 9,
+            "h": 8,
             "w": 12,
             "x": 12,
             "y": 0
@@ -169,8 +190,8 @@ data:
           "id": 2,
           "options": {
             "legend": {
-              "calcs": ["mean", "max", "lastNotNull"],
-              "displayMode": "table",
+              "calcs": [],
+              "displayMode": "list",
               "placement": "bottom",
               "showLegend": true
             },
@@ -179,6 +200,8 @@ data:
               "sort": "none"
             }
           },
+          "title": "HTTP Response Time",
+          "type": "timeseries",
           "targets": [
             {
               "datasource": {
@@ -186,55 +209,22 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(otel_api_calls_total{job=\"otel-collector\"}[1m])",
-              "instant": false,
+              "expr": "rate(http_server_duration_sum{service_name=\"nestjs-app\"}[1m]) / rate(http_server_duration_count{service_name=\"nestjs-app\"}[1m])",
+              "legendFormat": "{{http_route}}",
               "range": true,
               "refId": "A"
             }
-          ],
-          "title": "API Calls Rate (per minute)",
-          "type": "timeseries"
+          ]
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Total API calls to the application, specific to the Hello endpoint",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 30,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 2,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
+                "mode": "thresholds"
               },
               "mappings": [],
               "thresholds": {
@@ -243,32 +233,37 @@ data:
                   {
                     "color": "green",
                     "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
                   }
                 ]
-              },
-              "unit": "ops"
+              }
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 9,
-            "w": 24,
+            "h": 8,
+            "w": 12,
             "x": 0,
-            "y": 9
+            "y": 8
           },
           "id": 3,
           "options": {
-            "legend": {
-              "calcs": ["mean", "max", "lastNotNull"],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
             },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
           },
+          "title": "Total Requests",
+          "type": "gauge",
           "targets": [
             {
               "datasource": {
@@ -276,30 +271,93 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "otel_api_calls_total{job=\"otel-collector\", exported_endpoint=\"getHello\"}",
-              "instant": false,
+              "expr": "sum(http_server_duration_count{service_name=\"nestjs-app\"})",
+              "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
-          ],
-          "title": "API Calls by Endpoint",
-          "type": "timeseries"
+          ]
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "id": 4,
+          "options": {
+            "displayLabels": ["name", "percent"],
+            "legend": {
+              "displayMode": "list",
+              "placement": "right",
+              "showLegend": true
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "title": "HTTP Status Codes",
+          "type": "piechart",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "sum by(http_status_code) (http_server_duration_count{service_name=\"nestjs-app\"})",
+              "legendFormat": "{{http_status_code}}",
+              "range": true,
+              "refId": "A"
+            }
+          ]
         }
       ],
-      "refresh": "10s",
+      "refresh": "5s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["nestjs", "opentelemetry"],
+      "tags": ["nestjs", "metrics"],
       "templating": {
         "list": []
       },
       "time": {
-        "from": "now-5m",
+        "from": "now-15m",
         "to": "now"
       },
       "timepicker": {},
       "timezone": "",
-      "title": "NestJS Application Metrics",
-      "version": 0,
-      "uid": "nestjs-metrics"
+      "title": "NestJS App Metrics (Simple)",
+      "uid": "nestjs-app-metrics-simple",
+      "version": 1,
+      "weekStart": ""
     } 

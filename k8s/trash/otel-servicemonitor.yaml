@@ -10,6 +10,6 @@ spec:
     matchLabels:
       app: otel-collector
   endpoints:
-    - port: metrics
-      interval: 15s
-      path: /metrics 
+  - interval: 15s
+    port: prometheus
+    path: /metrics 

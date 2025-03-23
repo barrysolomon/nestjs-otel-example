@@ -19,8 +19,7 @@ spec:
       - args:
         - --config=/etc/otel/config.yaml
         - --set=service.telemetry.logs.level=debug
-        # Using a specific version of the contrib image that includes the Loki exporter
-        image: otel/opentelemetry-collector-contrib:0.96.0
+        image: otel/opentelemetry-collector:latest
         name: otel-collector
         ports:
         - containerPort: 4317

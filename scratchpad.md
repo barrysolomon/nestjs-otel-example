@@ -1,184 +1,110 @@
 
 
-docker build -t nest-opentelemetry-example .
-
-docker tag nest-opentelemetry-example:latest barrysolomon/nest-opentelemetry-example:latest
-docker push barrysolomon/nest-opentelemetry-example:latest
-
-
-kubectl rollout restart deployment nestjs-app
-
-
 
 ===============================
-OTEL Collector
+Installation
 ===============================
 
-kubectl apply -f https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/v0.118.0/examples/k8s/otel-config.yaml
+Based on the files I've examined, here's the recommended order for rebuilding your Kubernetes cluster:
 
-go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest
+1. **Create the observability namespace**:
+   ```bash
+   kubectl create namespace observability
+   ```
 
-export GOBIN=${GOBIN:-$(go env GOPATH)/bin}
+2. Apply the PV and PVC for Grafana:
+   ```bash
+   kubectl apply -f k8s/grafana-pv.yaml
+   ```
 
-$GOBIN/telemetrygen traces --otlp-insecure --traces 3
+2. **Deploy Prometheus and Grafana using Helm**:
+   This seems to be the base of your monitoring stack. You should install the kube-prometheus-stack:
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm repo update
+   helm install prometheus prometheus-community/kube-prometheus-stack -n observability
+   ```
 
+3. **Deploy Loki**:
+   ```bash
+   kubectl apply -f k8s/loki-deployment.yaml
+   ```
 
+4. **Deploy OpenTelemetry Collector**:
+   ```bash
+   # Apply the config first
+   kubectl apply -f k8s/otel-collector-config-with-loki.yaml
 
+   # Then apply the deployment
+   kubectl apply -f k8s/otel-collector-deployment-with-loki.yaml
 
+   # Apply the service
+   kubectl apply -f k8s/otel-collector-service.yaml
+   
+   # Apply the ServiceMonitor (for Prometheus to discover the collector)
+   kubectl apply -f k8s/otel-collector-servicemonitor.yaml
+   ```
 
-===============================
-Lumigo
-===============================
+5. **Configure Grafana Dashboards and Datasources**:
+   ```bash
+   # Apply Loki as a datasource
+   kubectl apply -f k8s/loki-datasource.yaml
 
-helm list --all-namespaces -q | xargs -I{} helm uninstall {} --namespace $(helm list --all-namespaces -q | xargs -I{} helm list -q -n $(helm list --all-namespaces -q | grep {} | awk '{print $2}'))
+   # Apply the dashboards
+   kubectl apply -f k8s/grafana-dashboards.yaml
+   ```
 
-helm repo add lumigo https://lumigo-io.github.io/lumigo-kubernetes-operator
+6. **Deploy the NestJS application**:
+   ```bash
+   kubectl apply -f k8s/nestjs-app.yaml
+   ```
 
-helm repo update 
+7. **Apply Network Policies** (if needed):
+   ```bash
+   kubectl apply -f k8s/allow-monitoring.yaml
+   kubectl apply -f k8s/allow-nestjs-to-otel.yaml
+   ```
 
-echo "
-cluster:
-  name: DockerDesktop
-lumigoToken:
-  value: t_f8f7b905da964eef89261
-" | helm upgrade -i lumigo lumigo/lumigo-operator --namespace lumigo-system --create-namespace --values -
+This order ensures that:
+1. The monitoring infrastructure (Prometheus, Grafana) is set up first
+2. Loki is deployed for log collection
+3. The OpenTelemetry Collector is properly configured and discoverable
+4. Grafana is configured with the necessary datasources and dashboards
+5. Finally, the application is deployed to start generating telemetry data
 
-
-
-
-1) helm repo add lumigo https://lumigo-io.github.io/lumigo-kubernetes-operator
-
-2) helm repo update 
-
-3) kubectl create namespace lumigo-system --dry-run=client -o yaml | kubectl apply -f -
-
-4) kubectl create secret generic lumigo-token --namespace lumigo-system --from-literal=LUMIGO_TRACER_TOKEN="t_4894da21f6d94947ba609"
-
-5) echo "
-cluster:
-  name: DockerDesktop
-lumigoToken:
-  existingSecret: lumigo-token
-  key: LUMIGO_TRACER_TOKEN
-" | helm upgrade -i lumigo lumigo/lumigo-operator --namespace lumigo-system --create-namespace --values -
-
-
-
-
-
-
-
-
-kubectl create secret generic lumigo-secret \
-  --from-literal=api-key='t_XXXXXXXXDXXX' \
-  --namespace=default
-
-kubectl patch secret lumigo-secret -n default --type='strategic' \
-  -p="{\"data\":{\"api-key\":\"$(echo -n 't_XXXXXXXXDXXX' | base64)\"}}"
-
-kubectl delete secret lumigo-secret --namespace=default
-kubectl create secret generic lumigo-secret \
-  --from-literal=api-key='t_XXXXXXXXDXXX' \
-  --namespace=default
-
-
-
-Initech
-t_133063034d214d58b29ef
-
-Dora The Explorere
-t_f8f7b905da964eef89261
-
-kubectl delete secret lumigo-secret --ignore-not-found=true
-kubectl create secret generic lumigo-secret \
-  --from-literal=api-key='t_f8f7b905da964eef89261' -n nestjs-lumigo
+Make sure to check the status of each deployment before proceeding to the next step to ensure everything is running properly.
 
 
+--------------
+NESTJS APP
+--------------
 
 
-
-curl -X POST "https://ga-otlp.lumigo-tracer-edge.golumigo.com/v1/metrics" \
-     -H "Authorization: LumigoToken t_133063034d214d58b29ef" \
-     -H "Content-Type: application/json" \
-     -d '{"resourceMetrics":[{"resource":{},"instrumentationLibraryMetrics":[]}]}' -v
-
-
-
-
-
-
-===============================
-NESTJS App
-===============================
-
-sudo rm -rf dist node_modules
+rm -rf dist node_modules
 npm install --legacy-peer-deps
 npm run build
 
 export PORT=3001
 npm run start:dev
 
---------------------------------
-k8s Deploy
---------------------------------
 
 docker build -t nest-opentelemetry-example:latest .
 docker tag nest-opentelemetry-example:latest barrysolomon/nest-opentelemetry-example:latest
 docker push barrysolomon/nest-opentelemetry-example:latest
 
-kubectl delete -f k8s/nestjs-app.yaml -n nestjs
-kubectl apply -f k8s/nestjs-app.yaml -n nestjs
-
-kubectl rollout restart deployment nestjs-app -n nestjs-otel
-
-kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
-
-
-
-
-kubectl delete -f k8s/nestjs-app.yaml -n nestjs
-kubectl apply -f k8s/nestjs-app.yaml -n nestjs
-
-kubectl rollout restart deployment nestjs-app -n nestjs-otel
-
-
-kubectl delete -f k8s/nestjs-app.yaml -n nestjs-lumigo
-kubectl apply -f k8s/nestjs-app.yaml -n nestjs-lumigo
-
-kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
-kubectl port-forward service/nestjs-app-service 3002:80 -n nestjs-lumigo
-kubectl port-forward service/nestjs-app-service 3003:80 -n nestjs-otel
-
-kubectl rollout restart deployment nestjs-app
-
-kubectl get svc -n observability
-kubectl rollout restart deployment jaeger-collector -n observability
-
-
-
-
-
-==============
-SIMPLE OTEL
-==============
-
-docker build -t nest-opentelemetry-example:latest .
-docker tag nest-opentelemetry-example:latest barrysolomon/nest-opentelemetry-example:latest
-docker push barrysolomon/nest-opentelemetry-example:latest
-
---------------
-NESTJS APP
---------------
-
-k create namespace nestjs
 k delete -f k8s/nestjs-app.yaml  -n nestjs
 k apply -f k8s/nestjs-app.yaml  -n nestjs
+
+
+
 
 # NestJS Application (access your app at http://localhost:3001)
 kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
 
 
 for i in {1..10}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; sleep 1; done
+for i in {1..100}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
+for i in {1..1000}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
 
 
 
@@ -188,12 +114,15 @@ OTEL COLLECTOR
 
 k create namespace observability
 
+k apply -f k8s/otel-collector-config-with-loki.yaml   -n observability
+k apply -f k8s/otel-collector-deployment-with-loki.yaml   -n observability
+k apply -f k8s/otel-collector-service.yaml   -n observability
+
+
+
 k delete -f k8s/otel-collector.yaml   -n observability
 k apply -f k8s/otel-collector.yaml   -n observability
-
-k apply -f k8s/otel-collector-config.yaml   -n observability
-k apply -f k8s/otel-collector-deployment.yaml   -n observability
-k apply -f k8s/otel-collector-service.yaml   -n observability
+k apply -f k8s/otel-collector-deployment-with-loki.yaml   -n observability
 
 
 --------------
@@ -209,9 +138,10 @@ kubectl get crd | grep servicemonitors
 kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
 
 
---------------
+----------------------------
 OTEL collector service monitor
---------------
+----------------------------
+
 kubectl apply -f k8s/otel-collector-servicemonitor.yaml -n observability
 
 kubectl get pods -n observability | grep otel
@@ -223,10 +153,16 @@ kubectl get service -n observability otel-collector -o yaml
 
 # Verify that the metrics port is properly configured in the OTEL collector:
 ## The metrics endpoint is properly configured if 0.0.0.0:8888 is in the telemetry section.
-kubectl get configmap -n observability otel-collector-config -o yaml
+kubectl get configmap otel-collector-config -n observability -o yaml
 
 # Verify Prometheus is detecting the OpenTelemetry collector:
 kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090 & sleep 2 && echo "Visit http://localhost:9090/targets to check if your OTEL collector is being monitored"
+
+
+LOKI
+
+helm repo add grafana https://grafana.github.io/helm-charts
+helm install loki grafana/loki-stack -n observability
 
 
 --------------
@@ -235,11 +171,26 @@ GRAFANA
 
 k apply -f k8s/grafana-pv.yaml   -n observability
 
+
 k apply -f k8s/grafana-dashboard-configmap.yaml   -n observability
+k apply -f k8s/logs-dashboard.yaml   -n observability
+k apply -f k8s/app-metrics-dashboard-simple.yaml   -n observability
+kubectl apply -f k8s/app-metrics-dashboard.yaml -n observability && kubectl apply -f k8s/logs-dashboard.yaml -n observability
+
 
 # Grafana (access dashboards at http://localhost:3000, default credentials admin/prom-operator)
 kubectl port-forward -n observability svc/prometheus-grafana 3000:80
 
+The dashboards are created by multiple YAML files that work together:
+The main dashboard ConfigMaps:
+k8s/app-metrics-dashboard.yaml - Creates metrics dashboard for the application
+k8s/logs-dashboard.yaml - Creates logs dashboard
+k8s/grafana-dashboard-configmap.yaml - Creates OpenTelemetry collector dashboard
+The dashboard provisioner:
+k8s/grafana-dashboard-provisioner.yaml - Contains the Job that automatically imports dashboards into Grafana
+The process works like this:
+Dashboard definitions are stored as ConfigMaps with the grafana_datasource: "1" label
+The dashboard provisioner runs as a Job and uses the Grafana API to automatically import these dashboards
 
 
 --------------
@@ -495,4 +446,7 @@ Check Server Health/Env
     curl http://localhost:3001/debug/health
     curl http://localhost:3001/debug/env
     curl http://localhost:3001/debug/opentelemetry
+
+
+kubectl logs -n nestjs $(kubectl get pods -n nestjs -o jsonpath='{.items[0].metadata.name}') --tail=100
 

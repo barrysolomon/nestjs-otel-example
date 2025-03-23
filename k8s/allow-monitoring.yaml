@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-monitoring-namespace
-  namespace: monitoring
+  namespace: observability
 spec:
   podSelector: {}
   policyTypes:
@@ -11,5 +11,5 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
+              name: observability
 

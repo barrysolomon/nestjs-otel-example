@@ -96,4 +96,4 @@ data:
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, loki, logging] 
+          exporters: [debug, loki, logging]

@@ -35,8 +35,10 @@ export const initializeOpenTelemetry = async (
   });
 
   // Initialize the metric provider
-  const metricExporter = new OTLPMetricExporter();
-  console.log('Using metrics endpoint:', process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '(using environment defaults)');
+  const metricExporter = new OTLPMetricExporter({
+    url: metricsUrl || process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+  });
+  console.log('Using metrics endpoint:', metricsUrl || process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '(using environment defaults)');
   
   const meterProvider = new MeterProvider({
     resource: resource,
@@ -51,8 +53,10 @@ export const initializeOpenTelemetry = async (
   metrics.setGlobalMeterProvider(meterProvider);
 
   // Initialize the log provider
-  const logExporter = new OTLPLogExporter();
-  console.log('Using logs endpoint:', process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || '(using environment defaults)');
+  const logExporter = new OTLPLogExporter({
+    url: logsUrl || process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+  });
+  console.log('Using logs endpoint:', logsUrl || process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || '(using environment defaults)');
   
   const loggerProvider = new LoggerProvider({
     resource: resource,
@@ -64,8 +68,10 @@ export const initializeOpenTelemetry = async (
   logs.setGlobalLoggerProvider(loggerProvider);
 
   // Create and register SDK
-  const traceExporter = new OTLPTraceExporter();
-  console.log('Using traces endpoint:', process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '(using environment defaults)');
+  const traceExporter = new OTLPTraceExporter({
+    url: tracesUrl || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  });
+  console.log('Using traces endpoint:', tracesUrl || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '(using environment defaults)');
   
   const newSdk = new NodeSDK({
     resource,

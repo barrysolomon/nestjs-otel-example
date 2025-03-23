@@ -55,17 +55,25 @@ spec:
             - name: OTEL_TRACES_EXPORTER
               value: "otlp"
 
+            # Setting specific endpoints for each signal type using HTTP
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"
+              
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/logs"
+              
+            - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/metrics"
+
+            # Keeping this for backward compatibility
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector.observability.svc.cluster.local:4318"
 
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
+              value: "http"
 
             - name: NODE_ENV
               value: "production"
-
-            - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
-              value: otel-collector.observability.svc.cluster.local:4317
               
             - name: OTEL_EXPORTER_OTLP_INSECURE
               value: "true"
@@ -78,9 +86,11 @@ spec:
 
             - name: OTEL_TRACES_SAMPLER
               value: "parentbased_always_on"
+              
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=nestjs-app,deployment.environment=production"
 
           command: ["node"]
-          #args: ["-r", "@lumigo/opentelemetry/sync", "dist/main.js"]
           args: ["dist/main.js"]
 
           resources:
@@ -91,23 +101,18 @@ spec:
               cpu: "500m"
               memory: "1Gi"
               
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: 3000
-          #   initialDelaySeconds: 10
-          #   periodSeconds: 5
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: 3000
-          #   initialDelaySeconds: 5
-          #   periodSeconds: 3
-      # securityContext:
-      #   runAsUser: 1000
-      #   runAsGroup: 3000
-      #   fsGroup: 2000
-      # restartPolicy: Always
+#          livenessProbe:
+#            httpGet:
+#              path: /health
+#              port: 3000
+#            initialDelaySeconds: 30
+#            periodSeconds: 15
+#          readinessProbe:
+#            httpGet:
+#              path: /health
+#              port: 3000
+#            initialDelaySeconds: 15
+#            periodSeconds: 5
 
 ---
 apiVersion: v1

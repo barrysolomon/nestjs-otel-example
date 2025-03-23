@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: otel-collector-dashboard
+  name: app-metrics-dashboard
   namespace: observability
   labels:
-    grafana_dashboard: "1"
+    grafana_datasource: "1"
 data:
-  otel-collector.json: |
+  app-metrics-dashboard.json: |
     {
       "annotations": {
         "list": []
@@ -34,7 +34,7 @@ data:
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 10,
+                "fillOpacity": 30,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -42,12 +42,12 @@ data:
                   "viz": false
                 },
                 "lineInterpolation": "linear",
-                "lineWidth": 1,
+                "lineWidth": 2,
                 "pointSize": 5,
                 "scaleDistribution": {
                   "type": "linear"
                 },
-                "showPoints": "never",
+                "showPoints": "auto",
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
@@ -66,12 +66,13 @@ data:
                     "value": null
                   }
                 ]
-              }
+              },
+              "unit": "ops"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 8,
+            "h": 9,
             "w": 12,
             "x": 0,
             "y": 0
@@ -79,8 +80,8 @@ data:
           "id": 1,
           "options": {
             "legend": {
-              "calcs": [],
-              "displayMode": "list",
+              "calcs": ["mean", "max", "lastNotNull"],
+              "displayMode": "table",
               "placement": "bottom",
               "showLegend": true
             },
@@ -95,11 +96,14 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "otelcol_processor_batch_batch_send_size",
+              "editorMode": "code",
+              "expr": "otel_api_calls_total{job=\"otel-collector\"}",
+              "instant": false,
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Batch Send Size",
+          "title": "API Calls (Total)",
           "type": "timeseries"
         },
         {
@@ -119,7 +123,7 @@ data:
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 10,
+                "fillOpacity": 30,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -127,12 +131,12 @@ data:
                   "viz": false
                 },
                 "lineInterpolation": "linear",
-                "lineWidth": 1,
+                "lineWidth": 2,
                 "pointSize": 5,
                 "scaleDistribution": {
                   "type": "linear"
                 },
-                "showPoints": "never",
+                "showPoints": "auto",
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
@@ -151,12 +155,13 @@ data:
                     "value": null
                   }
                 ]
-              }
+              },
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 8,
+            "h": 9,
             "w": 12,
             "x": 12,
             "y": 0
@@ -164,8 +169,8 @@ data:
           "id": 2,
           "options": {
             "legend": {
-              "calcs": [],
-              "displayMode": "list",
+              "calcs": ["mean", "max", "lastNotNull"],
+              "displayMode": "table",
               "placement": "bottom",
               "showLegend": true
             },
@@ -180,11 +185,14 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "otelcol_processor_memory_limiter_current_usage_bytes",
+              "editorMode": "code",
+              "expr": "rate(otel_api_calls_total{job=\"otel-collector\"}[1m])",
+              "instant": false,
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Memory Usage",
+          "title": "API Calls Rate (per minute)",
           "type": "timeseries"
         },
         {
@@ -192,6 +200,7 @@ data:
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "description": "Total API calls to the application, specific to the Hello endpoint",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -204,7 +213,7 @@ data:
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
-                "fillOpacity": 10,
+                "fillOpacity": 30,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -212,12 +221,12 @@ data:
                   "viz": false
                 },
                 "lineInterpolation": "linear",
-                "lineWidth": 1,
+                "lineWidth": 2,
                 "pointSize": 5,
                 "scaleDistribution": {
                   "type": "linear"
                 },
-                "showPoints": "never",
+                "showPoints": "auto",
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
@@ -236,21 +245,22 @@ data:
                     "value": null
                   }
                 ]
-              }
+              },
+              "unit": "ops"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 8,
-            "w": 12,
+            "h": 9,
+            "w": 24,
             "x": 0,
-            "y": 8
+            "y": 9
           },
           "id": 3,
           "options": {
             "legend": {
-              "calcs": [],
-              "displayMode": "list",
+              "calcs": ["mean", "max", "lastNotNull"],
+              "displayMode": "table",
               "placement": "bottom",
               "showLegend": true
             },
@@ -265,113 +275,31 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "otelcol_processor_batch_batch_send_size_bytes",
+              "editorMode": "code",
+              "expr": "otel_api_calls_total{job=\"otel-collector\", exported_endpoint=\"getHello\"}",
+              "instant": false,
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Batch Send Size (Bytes)",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 8
-          },
-          "id": 4,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "expr": "otelcol_processor_memory_limiter_spike_limit_bytes",
-              "refId": "A"
-            }
-          ],
-          "title": "Memory Spike Limit",
+          "title": "API Calls by Endpoint",
           "type": "timeseries"
         }
       ],
-      "refresh": "5s",
+      "refresh": "10s",
       "schemaVersion": 38,
       "style": "dark",
-      "tags": ["prometheus-mixin"],
+      "tags": ["nestjs", "opentelemetry"],
       "templating": {
         "list": []
       },
       "time": {
-        "from": "now-1h",
+        "from": "now-5m",
         "to": "now"
       },
       "timepicker": {},
       "timezone": "",
-      "title": "OpenTelemetry / Collector",
+      "title": "NestJS Application Metrics",
       "version": 0,
-      "weekStart": ""
+      "uid": "nestjs-metrics"
     } 

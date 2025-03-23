@@ -4,7 +4,7 @@ metadata:
   name: logs-dashboard
   namespace: observability
   labels:
-    grafana_dashboard: "1"
+    grafana_datasource: "1"
 data:
   logs-dashboard.json: |-
     {

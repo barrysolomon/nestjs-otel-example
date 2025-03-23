@@ -1,4 +1,4 @@
-import { Controller, Header, Get, Post, Query } from '@nestjs/common';
+import { Controller, Header, Get, Post, Query, Body } from '@nestjs/common';
 import { AppService } from './app.service';
 import { LogService } from './services/log.service';
 
@@ -32,6 +32,23 @@ export class AppController {
   sendLog(@Query('message') message: string, @Query('severity') severity: string): string {
     try {
       const success = this.logService.logMessage(message, severity);
+      
+      return JSON.stringify({ 
+        success, 
+        message: success ? 'Log sent successfully' : 'Error processing log'
+      });
+    } catch (error) {
+      return JSON.stringify({ 
+        success: false, 
+        message: `Error processing log: ${error.message}`
+      });
+    }
+  }
+
+  @Post('log')
+  postLog(@Body() body: { message: string; severity: string }): string {
+    try {
+      const success = this.logService.logMessage(body.message, body.severity);
       
       return JSON.stringify({ 
         success, 

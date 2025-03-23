@@ -418,6 +418,9 @@
         <div class="form-group" style="text-align: right;">
           <button class="btn" onclick="searchTraces()">Search Traces</button>
           <button class="btn btn-secondary" onclick="resetFilters()">Reset Filters</button>
+          <button class="btn btn-secondary" onclick="refreshTraces()">
+            <span id="refresh-icon">🔄</span> Auto-refresh
+          </button>
         </div>
       </div>
       
@@ -617,12 +620,36 @@
       searchTraces();
     }
     
+    // Add auto-refresh functionality
+    let autoRefreshInterval = null;
+    
+    // Toggle auto-refresh
+    function refreshTraces() {
+      const refreshIcon = document.getElementById('refresh-icon');
+      
+      if (autoRefreshInterval) {
+        // Stop auto-refresh
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        refreshIcon.textContent = '🔄';
+        localStorage.setItem('tracesAutoRefresh', 'false');
+      } else {
+        // Start auto-refresh every 10 seconds
+        searchTraces(); // Initial search
+        autoRefreshInterval = setInterval(searchTraces, 10000);
+        refreshIcon.textContent = '⏹️';
+        localStorage.setItem('tracesAutoRefresh', 'true');
+      }
+    }
+    
     // Load traces when page loads
     document.addEventListener('DOMContentLoaded', () => {
       searchTraces();
       
-      // Refresh traces every 30 seconds
-      setInterval(searchTraces, 30000);
+      // Check if auto-refresh was enabled
+      if (localStorage.getItem('tracesAutoRefresh') === 'true') {
+        refreshTraces();
+      }
     });
   </script>
 </body>

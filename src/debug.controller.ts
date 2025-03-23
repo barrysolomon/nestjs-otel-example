@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { AutoLoggerService } from './services/auto-logger.service';
+import { AutoTraceService } from './services/auto-trace.service';
 import { OtelConfigService } from './otel-config/otel-config.service';
 import { LogService } from './services/log.service';
 import { TraceService } from './services/trace.service';
@@ -8,6 +9,7 @@ import { TraceService } from './services/trace.service';
 export class DebugController {
     constructor(
         private readonly autoLoggerService: AutoLoggerService,
+        private readonly autoTraceService: AutoTraceService,
         private readonly otelConfigService: OtelConfigService,
         private readonly logService: LogService,
         private readonly traceService: TraceService
@@ -58,6 +60,35 @@ export class DebugController {
         return {
             status: 'success',
             message: 'Auto logging stopped',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    @Get('autotrace/status')
+    getAutoTraceStatus() {
+        return {
+            running: this.autoTraceService.isRunning(),
+            interval: this.autoTraceService.getInterval(),
+            timestamp: new Date().toISOString()
+        };
+    }
+    
+    @Get('autotrace/start')
+    startAutoTracing() {
+        this.autoTraceService.startTraceGeneration();
+        return {
+            status: 'success',
+            message: 'Auto trace generation started',
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    @Get('autotrace/stop')
+    stopAutoTracing() {
+        this.autoTraceService.stopTraceGeneration();
+        return {
+            status: 'success',
+            message: 'Auto trace generation stopped',
             timestamp: new Date().toISOString()
         };
     }

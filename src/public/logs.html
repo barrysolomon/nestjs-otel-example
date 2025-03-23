@@ -725,17 +725,24 @@
         clearInterval(autoRefreshInterval);
         autoRefreshInterval = null;
         refreshIcon.textContent = '🔄';
+        localStorage.setItem('logsAutoRefresh', 'false');
       } else {
         // Start auto-refresh every 10 seconds
         searchLogs(); // Initial search
         autoRefreshInterval = setInterval(searchLogs, 10000);
         refreshIcon.textContent = '⏹️';
+        localStorage.setItem('logsAutoRefresh', 'true');
       }
     }
     
     // Load logs when page loads
     document.addEventListener('DOMContentLoaded', () => {
       searchLogs();
+      
+      // Check if auto-refresh was enabled
+      if (localStorage.getItem('logsAutoRefresh') === 'true') {
+        refreshLogs();
+      }
     });
   </script>
 </body>

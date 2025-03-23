@@ -215,6 +215,50 @@
     .custom-fields.visible {
       display: block;
     }
+    
+    .tab-container {
+      margin-top: 1rem;
+    }
+    
+    .tab-header {
+      display: flex;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 1rem;
+    }
+    
+    .tab-item {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+    
+    .tab-item:hover {
+      color: var(--primary-color);
+    }
+    
+    .tab-item.active {
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-top: 0.5rem;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -245,18 +289,6 @@
         <a href="/otel-config.html" class="nav-link active">
           <span class="nav-icon">⚙️</span>
           Configuration
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/start" class="nav-link">
-          <span class="nav-icon">🔄</span>
-          Start Auto-Logging
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/stop" class="nav-link">
-          <span class="nav-icon">⏹️</span>
-          Stop Auto-Logging
         </a>
       </li>
     </ul>
@@ -307,8 +339,8 @@
               </div>
               
               <div class="form-group">
-                <label for="sampling-rate">Sampling Rate (%)</label>
-                <input type="number" id="sampling-rate" name="samplingRate" min="0" max="100" value="100" />
+                <label for="collector-sampling-rate">Sampling Rate (%)</label>
+                <input type="number" id="collector-sampling-rate" name="samplingRate" min="0" max="100" value="100" />
               </div>
             </div>
           </div>
@@ -319,6 +351,76 @@
         </form>
         
         <div id="status-message" style="display: none;"></div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Trace Configuration</h3>
+        </div>
+        
+        <div class="tab-container">
+          <div class="tab-header">
+            <div class="tab-item active" data-tab="basic">Basic Settings</div>
+            <div class="tab-item" data-tab="advanced">Advanced Settings</div>
+          </div>
+          
+          <div class="tab-content active" id="basic-tab">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="sampling-rate">Sampling Rate (%)</label>
+                <input type="number" id="sampling-rate" min="0" max="100" value="100" />
+              </div>
+              
+              <div class="form-group">
+                <label for="service-name">Service Name</label>
+                <input type="text" id="service-name" value="nestjs-opentelemetry-example" />
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="resource-attributes">Resource Attributes</label>
+              <textarea id="resource-attributes" rows="3" placeholder="key1=value1,key2=value2"></textarea>
+            </div>
+          </div>
+          
+          <div class="tab-content" id="advanced-tab">
+            <div class="form-group">
+              <label>Instrumentations</label>
+              <div class="checkbox-group">
+                <input type="checkbox" id="http-enabled" checked />
+                <label for="http-enabled">HTTP</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="express-enabled" checked />
+                <label for="express-enabled">Express</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="nestjs-enabled" checked />
+                <label for="nestjs-enabled">NestJS</label>
+              </div>
+              <div class="checkbox-group">
+                <input type="checkbox" id="custom-enabled" checked />
+                <label for="custom-enabled">Custom</label>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="propagation-format">Context Propagation Format</label>
+              <select id="propagation-format">
+                <option value="tracecontext">W3C TraceContext</option>
+                <option value="b3">B3 Single</option>
+                <option value="b3multi">B3 Multi</option>
+                <option value="jaeger">Jaeger</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-group" style="text-align: right; margin-top: 1rem;">
+          <button class="btn" onclick="saveTraceConfig()">Save Trace Configuration</button>
+        </div>
+        
+        <div id="trace-status" style="display: none;"></div>
       </div>
       
       <div class="card">
@@ -341,6 +443,25 @@
       const applyButton = document.getElementById('apply-button');
       const statusMessage = document.getElementById('status-message');
       const currentConfigDiv = document.getElementById('current-config');
+      
+      // Tab switching
+      const tabItems = document.querySelectorAll('.tab-item');
+      tabItems.forEach(item => {
+        item.addEventListener('click', function() {
+          // Remove active class from all tabs
+          tabItems.forEach(tab => tab.classList.remove('active'));
+          
+          // Add active class to clicked tab
+          this.classList.add('active');
+          
+          // Show the corresponding tab content
+          const tabId = this.getAttribute('data-tab');
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+          });
+          document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+      });
       
       // Show/hide custom fields based on collector type selection
       collectorTypeSelect.addEventListener('change', function() {
@@ -389,7 +510,7 @@
               document.getElementById('traces-endpoint').value = config.tracesEndpoint || '';
               document.getElementById('logs-endpoint').value = config.logsEndpoint || '';
               document.getElementById('metrics-endpoint').value = config.metricsEndpoint || '';
-              document.getElementById('sampling-rate').value = config.samplingRate || '100';
+              document.getElementById('collector-sampling-rate').value = config.samplingRate || '100';
             } else {
               customFieldsDiv.classList.remove('visible');
             }
@@ -438,6 +559,36 @@
         setTimeout(() => {
           statusMessage.style.display = 'none';
         }, 5000);
+      }
+      
+      // Function to save trace configuration
+      function saveTraceConfig() {
+        const config = {
+          samplingRate: document.getElementById('sampling-rate').value,
+          serviceName: document.getElementById('service-name').value,
+          resourceAttributes: document.getElementById('resource-attributes').value,
+          instrumentations: {
+            http: document.getElementById('http-enabled').checked,
+            express: document.getElementById('express-enabled').checked,
+            nestjs: document.getElementById('nestjs-enabled').checked,
+            custom: document.getElementById('custom-enabled').checked
+          },
+          propagationFormat: document.getElementById('propagation-format').value
+        };
+        
+        // In a real app, this would be an API call to update the backend configuration
+        console.log('Trace configuration saved:', config);
+        
+        // Show success message
+        const statusElement = document.getElementById('trace-status');
+        statusElement.textContent = 'Trace configuration saved successfully!';
+        statusElement.className = 'status success';
+        statusElement.style.display = 'block';
+        
+        // Hide status after 3 seconds
+        setTimeout(() => {
+          statusElement.style.display = 'none';
+        }, 3000);
       }
     });
   </script>

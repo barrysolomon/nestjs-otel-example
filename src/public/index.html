@@ -499,74 +499,6 @@
           <div id="log-status" style="display: none;"></div>
         </div>
       </div>
-      
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Trace Configuration</h3>
-        </div>
-        
-        <div class="tab-container">
-          <div class="tab-header">
-            <div class="tab-item active" data-tab="basic">Basic Settings</div>
-            <div class="tab-item" data-tab="advanced">Advanced Settings</div>
-          </div>
-          
-          <div class="tab-content active" id="basic-tab">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="sampling-rate">Sampling Rate (%)</label>
-                <input type="number" id="sampling-rate" min="0" max="100" value="100" />
-              </div>
-              
-              <div class="form-group">
-                <label for="service-name">Service Name</label>
-                <input type="text" id="service-name" value="nestjs-opentelemetry-example" />
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="resource-attributes">Resource Attributes</label>
-              <textarea id="resource-attributes" rows="3" placeholder="key1=value1,key2=value2"></textarea>
-            </div>
-          </div>
-          
-          <div class="tab-content" id="advanced-tab">
-            <div class="form-group">
-              <label>Instrumentations</label>
-              <div class="checkbox-group">
-                <input type="checkbox" id="http-enabled" checked />
-                <label for="http-enabled">HTTP</label>
-              </div>
-              <div class="checkbox-group">
-                <input type="checkbox" id="express-enabled" checked />
-                <label for="express-enabled">Express</label>
-              </div>
-              <div class="checkbox-group">
-                <input type="checkbox" id="nestjs-enabled" checked />
-                <label for="nestjs-enabled">NestJS</label>
-              </div>
-              <div class="checkbox-group">
-                <input type="checkbox" id="custom-enabled" checked />
-                <label for="custom-enabled">Custom</label>
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="propagation-format">Context Propagation Format</label>
-              <select id="propagation-format">
-                <option value="tracecontext">W3C TraceContext</option>
-                <option value="b3">B3 Single</option>
-                <option value="b3multi">B3 Multi</option>
-                <option value="jaeger">Jaeger</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        
-        <div class="form-group" style="text-align: right; margin-top: 1rem;">
-          <button class="btn" onclick="saveTraceConfig()">Save Configuration</button>
-        </div>
-      </div>
     </main>
   </div>
 
@@ -704,36 +636,6 @@
       } catch (error) {
         console.error('Error stopping Auto-Tracer:', error);
       }
-    }
-    
-    // Function to save trace configuration
-    function saveTraceConfig() {
-      const config = {
-        samplingRate: document.getElementById('sampling-rate').value,
-        serviceName: document.getElementById('service-name').value,
-        resourceAttributes: document.getElementById('resource-attributes').value,
-        instrumentations: {
-          http: document.getElementById('http-enabled').checked,
-          express: document.getElementById('express-enabled').checked,
-          nestjs: document.getElementById('nestjs-enabled').checked,
-          custom: document.getElementById('custom-enabled').checked
-        },
-        propagationFormat: document.getElementById('propagation-format').value
-      };
-      
-      // In a real app, this would be an API call to update the backend configuration
-      console.log('Trace configuration saved:', config);
-      
-      // Show success message
-      const statusElement = document.getElementById('trace-status');
-      statusElement.textContent = 'Configuration saved successfully!';
-      statusElement.className = 'status success';
-      statusElement.style.display = 'block';
-      
-      // Hide status after 3 seconds
-      setTimeout(() => {
-        statusElement.style.display = 'none';
-      }, 3000);
     }
     
     // Auto-Logger functions

@@ -51,8 +51,8 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "rate(http_server_duration_count[5m])",
-              "legendFormat": "{{route}} - {{method}}"
+              "expr": "rate(otel_http_server_duration_milliseconds_count[5m])",
+              "legendFormat": "{{http_route}} - {{http_method}}"
             }
           ],
           "title": "HTTP Request Rate",
@@ -95,8 +95,8 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "rate(http_server_duration_sum[5m]) / rate(http_server_duration_count[5m])",
-              "legendFormat": "{{route}} - {{method}}"
+              "expr": "rate(otel_http_server_duration_milliseconds_sum[5m]) / rate(otel_http_server_duration_milliseconds_count[5m])",
+              "legendFormat": "{{http_route}} - {{http_method}}"
             }
           ],
           "title": "HTTP Response Time",
@@ -155,7 +155,7 @@ data:
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "expr": "sum(rate(http_server_duration_count{status_code=~\"5..\"}[5m])) / sum(rate(http_server_duration_count[5m]))",
+              "expr": "sum(rate(otel_http_server_duration_milliseconds_count{http_status_code=~\"5..\"}[5m])) / sum(rate(otel_http_server_duration_milliseconds_count[5m]))",
               "instant": false,
               "legendFormat": "Error Rate",
               "range": true,
@@ -250,9 +250,9 @@ data:
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(rate(http_server_duration_count[5m])) by (status_code)",
+              "expr": "sum(rate(otel_http_server_duration_milliseconds_count[5m])) by (http_status_code)",
               "instant": false,
-              "legendFormat": "{{status_code}}",
+              "legendFormat": "{{http_status_code}}",
               "range": true,
               "refId": "A"
             }

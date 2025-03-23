@@ -67,6 +67,9 @@ data:
           label1: value1
         send_timestamps: true
         metric_expiration: 180m
+        enable_open_metrics: true
+        resource_to_telemetry_conversion:
+          enabled: true
       logging:
         loglevel: debug
       loki:

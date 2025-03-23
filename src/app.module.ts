@@ -16,6 +16,7 @@ import { TraceService } from './services/trace.service';
 import { TemplateService } from './services/template.service';
 import { LogService } from './services/log.service';
 import { QueryParserService } from './services/query-parser.service';
+import { AutoLoggerService } from './services/auto-logger.service';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { QueryParserService } from './services/query-parser.service';
     TemplateService,
     LogService,
     QueryParserService,
+    AutoLoggerService,
     ...(usePino && pinoLogger
       ? [
           {

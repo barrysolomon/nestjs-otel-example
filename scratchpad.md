@@ -1,4 +1,5 @@
 
+kubectl port-forward -n observability svc/otel-collector 8889:8889
 
 
 ===============================
@@ -64,6 +65,13 @@ Based on the files I've examined, here's the recommended order for rebuilding yo
    kubectl apply -f k8s/allow-monitoring.yaml
    kubectl apply -f k8s/allow-nestjs-to-otel.yaml
    ```
+
+kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
+kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
+kubectl port-forward -n observability svc/prometheus-grafana 3000:80
+
+for i in {1..100}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
+
 
 This order ensures that:
 1. The monitoring infrastructure (Prometheus, Grafana) is set up first

@@ -77,6 +77,10 @@ data:
         default_labels_enabled:
           exporter: true
           job: true
+      otlp:
+        endpoint: "jaeger-collector.observability:4317"
+        tls:
+          insecure: true
 
     service:
       telemetry:
@@ -91,7 +95,7 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug]
+          exporters: [debug, otlp]
         metrics:
           receivers: [otlp, prometheus]
           processors: [memory_limiter, batch]

@@ -44,9 +44,25 @@ export class LogService {
    */
   logMessage(message: any, severity: string): boolean {
     try {
-      const logData = typeof message === 'string' ? JSON.parse(message) : message;
+      let logData: any = {};
+      let logMessageStr: string;
       
-      const logMessageStr = `Custom log message: ${JSON.stringify(logData)}`;
+      // Handle different message types
+      if (typeof message === 'string') {
+        try {
+          // Try to parse as JSON
+          logData = JSON.parse(message);
+          logMessageStr = `Custom log message: ${message}`;
+        } catch (parseError) {
+          // Plain text message
+          logMessageStr = message;
+          logData = { message: logMessageStr };
+        }
+      } else {
+        // Object message
+        logData = message;
+        logMessageStr = `Custom log message: ${JSON.stringify(logData)}`;
+      }
       
       // Log using local logger
       switch (severity) {
@@ -70,7 +86,7 @@ export class LogService {
           severityNumber: this.getSeverityNumber(severity),
           severityText: severity.toUpperCase(),
           body: logMessageStr,
-          attributes: { ...logData },
+          attributes: typeof logData === 'object' ? logData : { message: logData },
         });
       } catch (otelError) {
         console.error('Error sending log to OpenTelemetry:', otelError);

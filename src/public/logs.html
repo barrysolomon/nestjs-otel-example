@@ -242,6 +242,7 @@
       border-radius: 9999px;
       font-size: 0.75rem;
       font-weight: 500;
+      margin-left: 0.5rem;
     }
     
     .log-level-info {
@@ -266,12 +267,13 @@
     
     .log-message {
       margin-bottom: 0.5rem;
+      word-break: break-word;
     }
     
     .log-details {
       max-height: 0;
       overflow: hidden;
-      transition: max-height 0.2s ease-out;
+      transition: max-height 0.3s ease-out;
       background-color: #0f172a;
       border-radius: 0.25rem;
       margin-top: 0.5rem;
@@ -280,6 +282,7 @@
     .log-details.expanded {
       max-height: 500px;
       padding: 0.5rem;
+      overflow: auto;
     }
     
     .log-metadata {
@@ -292,6 +295,7 @@
       color: #60a5fa;
       font-size: 0.875rem;
       text-decoration: underline;
+      margin-bottom: 0.5rem;
     }
     
     .pagination {
@@ -332,6 +336,32 @@
       pointer-events: none;
       background-color: #f3f4f6;
     }
+    
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem 0;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: var(--primary-color);
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .no-logs {
+      text-align: center;
+      padding: 2rem 0;
+      color: #64748b;
+    }
   </style>
 </head>
 <body>
@@ -359,21 +389,9 @@
         </a>
       </li>
       <li class="nav-item">
-        <a href="/otel-config.html" class="nav-link">
+        <a href="/otel-config" class="nav-link">
           <span class="nav-icon">⚙️</span>
           Configuration
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/start" class="nav-link">
-          <span class="nav-icon">🔄</span>
-          Start Auto-Logging
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/stop" class="nav-link">
-          <span class="nav-icon">⏹️</span>
-          Stop Auto-Logging
         </a>
       </li>
     </ul>
@@ -531,12 +549,12 @@
       const limit = document.getElementById('limit').value;
       
       // Show loading state
-      document.getElementById('logs-container').innerHTML = `<div class="loading">Loading logs...</div>`;
+      document.getElementById('logs-container').innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
       
-      // Fetch logs
+      // Fetch logs with level filter only if not "all"
       const data = await fetchLogs({
         service,
-        level,
+        level: level !== 'all' ? level : undefined,
         searchTerm,
         context,
         limit
@@ -573,7 +591,14 @@
       // Create log entries
       currentLogs.forEach(log => {
         const timestamp = new Date(log.timestamp);
-        const formattedTime = timestamp.toLocaleString();
+        const formattedTime = timestamp.toLocaleString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
         
         // Determine log level class
         let levelClass = 'log-level-info';
@@ -587,21 +612,36 @@
         
         // Create log entry HTML
         const logEntry = document.createElement('div');
-        logEntry.className = `log-entry ${levelClass}`;
+        logEntry.className = 'log-entry';
         
         logEntry.innerHTML = `
           <div class="log-header">
             <span class="log-timestamp">${formattedTime}</span>
-            <span class="log-level">${log.level.toUpperCase()}</span>
+            <span class="log-level ${levelClass}">${log.level.toUpperCase()}</span>
             <span class="log-context">${log.context || 'Application'}</span>
           </div>
           <div class="log-message">${log.message}</div>
+          <div class="log-toggle">Show details</div>
           <div class="log-details">
             <pre>${JSON.stringify(log.metadata, null, 2)}</pre>
           </div>
         `;
         
         container.appendChild(logEntry);
+        
+        // Add click event to toggle details
+        const toggle = logEntry.querySelector('.log-toggle');
+        const details = logEntry.querySelector('.log-details');
+        
+        toggle.addEventListener('click', () => {
+          if (details.classList.contains('expanded')) {
+            details.classList.remove('expanded');
+            toggle.textContent = 'Show details';
+          } else {
+            details.classList.add('expanded');
+            toggle.textContent = 'Hide details';
+          }
+        });
       });
       
       // Update pagination
@@ -666,7 +706,7 @@
     // Reset filters
     function resetFilters() {
       document.getElementById('service-name').value = 'nestjs-opentelemetry-example';
-      document.getElementById('log-level').value = '';
+      document.getElementById('log-level').value = 'all';
       document.getElementById('time-range').value = '1h';
       document.getElementById('search-term').value = '';
       document.getElementById('context').value = '';

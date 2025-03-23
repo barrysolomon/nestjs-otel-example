@@ -104,6 +104,10 @@ docker push barrysolomon/nest-opentelemetry-example:latest
 k delete -f k8s/nestjs-app.yaml  -n nestjs
 k apply -f k8s/nestjs-app.yaml  -n nestjs
 
+kubectl rollout restart deployment nestjs-app -n nestjs
+
+
+
 # NestJS Application (access your app at http://localhost:3001)
 kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
 

@@ -202,8 +202,25 @@
       background-color: #fee2e2;
       color: #b91c1c;
     }
+
+    .status.active {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status.inactive {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
     
     .metrics-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    
+    .metrics {
       display: flex;
       flex-wrap: wrap;
       gap: 1rem;
@@ -312,21 +329,9 @@
         </a>
       </li>
       <li class="nav-item">
-        <a href="/otel-config.html" class="nav-link">
+        <a href="/otel-config" class="nav-link">
           <span class="nav-icon">⚙️</span>
           Configuration
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/start" class="nav-link">
-          <span class="nav-icon">🔄</span>
-          Start Auto-Logging
-        </a>
-      </li>
-      <li class="nav-item">
-        <a href="/debug/autolog/stop" class="nav-link">
-          <span class="nav-icon">⏹️</span>
-          Stop Auto-Logging
         </a>
       </li>
     </ul>
@@ -409,6 +414,79 @@
           <div class="metric">
             <div class="metric-value" id="avg-duration">0ms</div>
             <div class="metric-label">Average Duration</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Auto-Logger Control Card -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header">
+            <h5 class="mb-0">Auto-Logger Control</h5>
+          </div>
+          <div class="card-body">
+            <p class="card-text">The Auto-Logger periodically sends log messages at regular intervals.</p>
+            <div class="mb-3">
+              <div class="alert alert-info p-2">
+                <strong>Status:</strong> <span id="autolog-status">Loading...</span>
+              </div>
+              <div class="d-flex justify-content-between small text-muted mb-2">
+                <span>Interval: <span id="autolog-interval">-</span></span>
+                <span>Last Updated: <span id="autolog-updated">-</span></span>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between">
+              <button id="startAutolog" class="btn btn-success btn-sm">Start Auto-Logger</button>
+              <button id="stopAutolog" class="btn btn-danger btn-sm">Stop Auto-Logger</button>
+              <button id="checkStatus" class="btn btn-info btn-sm">Refresh Status</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Generator Card -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header">
+            <h5 class="mb-0">Log Generator</h5>
+          </div>
+          <div class="card-body">
+            <p class="card-text">Create and send custom log messages.</p>
+            <form id="logGeneratorForm">
+              <div class="mb-3">
+                <label for="logMessage" class="form-label">Log Message</label>
+                <input type="text" class="form-control" id="logMessage" placeholder="Enter log message" value="Test log message">
+              </div>
+              <div class="row mb-3">
+                <div class="col">
+                  <label for="logLevel" class="form-label">Log Level</label>
+                  <select class="form-select" id="logLevel">
+                    <option value="info" selected>Info</option>
+                    <option value="warn">Warning</option>
+                    <option value="error">Error</option>
+                    <option value="debug">Debug</option>
+                  </select>
+                </div>
+                <div class="col">
+                  <label for="logContext" class="form-label">Context</label>
+                  <input type="text" class="form-control" id="logContext" placeholder="Optional context" value="ManualLogger">
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="logMetadata" class="form-label">Metadata (JSON)</label>
+                <textarea class="form-control" id="logMetadata" rows="3" placeholder='{"key": "value"}'>{
+  "userId": "user-123",
+  "action": "manual-log",
+  "timestamp": "",
+  "source": "dashboard"
+}</textarea>
+              </div>
+              <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">Send Log</button>
+                <button type="button" class="btn btn-secondary" id="viewLogsBtn">View Logs</button>
+              </div>
+            </form>
+            <div id="logStatus" class="mt-3"></div>
           </div>
         </div>
       </div>
@@ -513,6 +591,14 @@
           stopAutoGeneration();
         }
       });
+
+      // Set up Auto-Logger Control
+      document.getElementById('startAutolog').addEventListener('click', startAutoLogger);
+      document.getElementById('stopAutolog').addEventListener('click', stopAutoLogger);
+      document.getElementById('checkStatus').addEventListener('click', checkAutoLoggerStatus);
+
+      // Check Auto-Logger status when page loads
+      checkAutoLoggerStatus();
     });
     
     // For metrics tracking
@@ -531,51 +617,56 @@
       const operationName = document.getElementById('operation-name').value;
       const eventMessage = document.getElementById('event-message').value;
       
+      // Create URL with query parameters
+      const url = `/trace?message=${encodeURIComponent(message)}&customTag=${encodeURIComponent(customTag)}&operation=${encodeURIComponent(operationName)}&event=${encodeURIComponent(eventMessage)}`;
+      
       const startTime = Date.now();
       
-      // In a real app, this would be an API call to the backend
-      // For demo purposes, we'll simulate a response
-      const traceId = generateRandomTraceId();
-      const success = Math.random() > 0.2; // 80% success rate
-      
-      setTimeout(() => {
-        const duration = Date.now() - startTime;
-        
-        // Update stats
-        stats.totalTraces++;
-        if (success) {
+      // Make the actual API call
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          const duration = Date.now() - startTime;
+          
+          // Update stats
+          stats.totalTraces++;
           stats.successfulTraces++;
-        }
-        stats.totalDuration += duration;
-        
-        updateMetrics();
-        
-        // Show trace status
-        const statusElement = document.getElementById('trace-status');
-        statusElement.textContent = success 
-          ? `Trace sent successfully! Trace ID: ${traceId}` 
-          : 'Failed to send trace. Check console for details.';
-        statusElement.className = success ? 'status success' : 'status error';
-        statusElement.style.display = 'block';
-        
-        // Hide status after 3 seconds
-        setTimeout(() => {
-          statusElement.style.display = 'none';
-        }, 3000);
-        
-        if (success) {
-          console.log(`Trace sent:
-            Trace ID: ${traceId}
-            Message: ${message}
-            Operation: ${operationName}
-            Tags: ${customTag}
-            Event: ${eventMessage}
-            Duration: ${duration}ms
-          `);
-        } else {
-          console.error('Failed to send trace:', { message, operationName, customTag });
-        }
-      }, Math.random() * 500 + 100); // Random delay between 100-600ms
+          stats.totalDuration += duration;
+          
+          updateMetrics();
+          
+          // Show trace status
+          const statusElement = document.getElementById('trace-status');
+          statusElement.textContent = `Trace sent successfully! Trace ID: ${data.traceId || 'N/A'}`;
+          statusElement.className = 'status success';
+          statusElement.style.display = 'block';
+          
+          // Hide status after 3 seconds
+          setTimeout(() => {
+            statusElement.style.display = 'none';
+          }, 3000);
+          
+          console.log('Trace sent:', data);
+        })
+        .catch(error => {
+          console.error('Failed to send trace:', error);
+          
+          // Update stats
+          stats.totalTraces++;
+          
+          updateMetrics();
+          
+          // Show error status
+          const statusElement = document.getElementById('trace-status');
+          statusElement.textContent = 'Failed to send trace. Check console for details.';
+          statusElement.className = 'status error';
+          statusElement.style.display = 'block';
+          
+          // Hide status after 3 seconds
+          setTimeout(() => {
+            statusElement.style.display = 'none';
+          }, 3000);
+        });
     }
     
     // Function to update metrics
@@ -654,15 +745,129 @@
       }, 3000);
     }
     
-    // Helper function to generate random trace ID
-    function generateRandomTraceId() {
-      const chars = '0123456789abcdef';
-      let result = '';
-      for (let i = 0; i < 32; i++) {
-        result += chars[Math.floor(Math.random() * chars.length)];
+    // Auto-Logger functions
+    async function checkAutoLoggerStatus() {
+      try {
+        const response = await fetch('/debug/autolog/status');
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('autolog-status');
+        const intervalEl = document.getElementById('autolog-interval');
+        const lastUpdatedEl = document.getElementById('autolog-updated');
+        
+        if (data.running) {
+          statusEl.className = 'status active';
+          statusEl.textContent = 'Status: Running';
+        } else {
+          statusEl.className = 'status inactive';
+          statusEl.textContent = 'Status: Stopped';
+        }
+        
+        intervalEl.textContent = `${data.interval / 1000} seconds`;
+        lastUpdatedEl.textContent = new Date().toLocaleTimeString();
+        
+        console.log('Auto-Logger status:', data);
+      } catch (error) {
+        console.error('Error checking Auto-Logger status:', error);
       }
-      return result;
     }
+
+    async function startAutoLogger() {
+      try {
+        const response = await fetch('/debug/autolog/start');
+        const data = await response.json();
+        
+        console.log('Auto-Logger started:', data);
+        checkAutoLoggerStatus();
+      } catch (error) {
+        console.error('Error starting Auto-Logger:', error);
+      }
+    }
+
+    async function stopAutoLogger() {
+      try {
+        const response = await fetch('/debug/autolog/stop');
+        const data = await response.json();
+        
+        console.log('Auto-Logger stopped:', data);
+        checkAutoLoggerStatus();
+      } catch (error) {
+        console.error('Error stopping Auto-Logger:', error);
+      }
+    }
+
+    // Log Generator functionality
+    document.getElementById('logGeneratorForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const message = document.getElementById('logMessage').value;
+      if (!message) {
+        showLogStatus('Please enter a log message', 'danger');
+        return;
+      }
+      
+      const level = document.getElementById('logLevel').value;
+      const context = document.getElementById('logContext').value;
+      let metadata = {};
+      
+      try {
+        const metadataText = document.getElementById('logMetadata').value;
+        if (metadataText) {
+          // Parse the metadata
+          metadata = JSON.parse(metadataText);
+          
+          // Add current timestamp if the field exists but is empty
+          if (metadata.hasOwnProperty('timestamp') && !metadata.timestamp) {
+            metadata.timestamp = new Date().toISOString();
+          }
+        }
+      } catch (error) {
+        showLogStatus('Invalid JSON in metadata field', 'danger');
+        return;
+      }
+      
+      try {
+        console.log('Sending log:', { message, level, context, metadata });
+        
+        const response = await fetch('/log', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message,
+            level,
+            context,
+            metadata
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showLogStatus('Log sent successfully!', 'success');
+          console.log('Log response:', data);
+          setTimeout(() => {
+            document.getElementById('logStatus').innerHTML = '';
+          }, 3000);
+        } else {
+          showLogStatus(`Error: ${data.message || 'Failed to send log'}`, 'danger');
+          console.error('Log error response:', data);
+        }
+      } catch (error) {
+        showLogStatus(`Error: ${error.message}`, 'danger');
+        console.error('Log error:', error);
+      }
+    });
+    
+    function showLogStatus(message, type) {
+      const statusEl = document.getElementById('logStatus');
+      statusEl.innerHTML = `<div class="alert alert-${type} p-2">${message}</div>`;
+    }
+    
+    document.getElementById('viewLogsBtn').addEventListener('click', function() {
+      window.location.href = '/logs.html';
+    });
   </script>
 </body>
 </html> 

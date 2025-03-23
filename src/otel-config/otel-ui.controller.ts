@@ -6,6 +6,6 @@ import * as path from 'path';
 export class OtelUiController {
   @Get()
   getConfigUi(@Res() res: Response) {
-    res.sendFile(path.join(__dirname, '../../public/otel-config.html'));
+    res.sendFile(path.join(__dirname, '../../src/public/otel-config.html'));
   }
 } 

@@ -13,13 +13,14 @@ export class AppController {
 
   @Get()
   getIndex(@Res() res: Response) {
-    return res.sendFile(join(process.cwd(), 'public/index.html'));
+    return res.sendFile(join(process.cwd(), 'src/public/index.html'));
   }
 
-  @Header('Content-Type', 'text/html')
-  @Get()
-  getHello(@Query('message') message?: string): string {
-    return this.appService.getHello(message);
+  @Header('Content-Type', 'application/json')
+  @Get('trace')
+  generateTrace(@Query('message') message?: string, @Query('customTag') customTag?: string, 
+                @Query('operation') operation?: string, @Query('event') eventMessage?: string): string {
+    return JSON.stringify(this.appService.generateTrace(message, customTag, operation, eventMessage));
   }
 
   @Post()
@@ -53,15 +54,24 @@ export class AppController {
   }
 
   @Post('log')
-  postLog(@Body() body: { message: string; severity: string }): string {
+  postLog(@Body() body: { message: string; level: string; context?: string; metadata?: any }): string {
     try {
-      const success = this.logService.logMessage(body.message, body.severity);
+      console.log('Received POST log request:', body);
+      
+      // Map the level parameter to severity for backwards compatibility
+      const success = this.logService.logMessage(
+        typeof body.metadata === 'object' ? { ...body.metadata, context: body.context, message: body.message } : body.message, 
+        body.level
+      );
+      
+      console.log('Log processed with result:', success);
       
       return JSON.stringify({ 
         success, 
         message: success ? 'Log sent successfully' : 'Error processing log'
       });
     } catch (error) {
+      console.error('Error in postLog:', error);
       return JSON.stringify({ 
         success: false, 
         message: `Error processing log: ${error.message}`

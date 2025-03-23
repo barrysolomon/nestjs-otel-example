@@ -56,10 +56,10 @@ async function bootstrap() {
   app.enableCors();
 
   // Serve static files from the public directory at the root path
-  app.use(express.static(join(__dirname, '..', 'public')));
+  app.use(express.static(join(__dirname, '..', 'src/public')));
   
   // Also serve them at the /public path for backward compatibility
-  app.use('/public', express.static(join(__dirname, '..', 'public')));
+  app.use('/public', express.static(join(__dirname, '..', 'src/public')));
 
   // Start listening
   await app.listen(3000);

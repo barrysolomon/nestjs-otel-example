@@ -479,88 +479,55 @@
   </div>
 
   <script>
-    // Sample trace data for demonstration
-    const sampleTraces = [
-      {
-        traceId: 'a39f07f9ce28609b35e8eab0dc45744f',
-        spanId: 'ef7359530e9608ac',
-        operation: 'getHello',
-        durationMs: 123,
-        startTime: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 minutes ago
-        status: 'success',
-        attributes: {
-          'custom-tag': 'demo-tag',
-          response: 'Hello OpenTelemetry!'
-        },
-        events: [
-          {
-            name: 'Demo Event',
-            time: Date.now() - 1000 * 60 * 5 + 50,
-            attributes: {}
-          }
-        ]
-      },
-      {
-        traceId: 'b28c16d8fe37518a46f9cba1ce567853',
-        spanId: 'da4e3c621f7509bd',
-        operation: 'updateUser',
-        durationMs: 345,
-        startTime: new Date(Date.now() - 1000 * 60 * 10).toISOString(), // 10 minutes ago
-        status: 'warning',
-        attributes: {
-          'custom-tag': 'user-tag',
-          'user-id': '12345',
-          response: 'User updated with warning'
-        },
-        events: [
-          {
-            name: 'Database Query',
-            time: Date.now() - 1000 * 60 * 10 + 100,
-            attributes: { query: 'UPDATE users SET name = ? WHERE id = ?' }
-          },
-          {
-            name: 'Warning Event',
-            time: Date.now() - 1000 * 60 * 10 + 300,
-            attributes: { message: 'Some fields were not updated' }
-          }
-        ]
-      },
-      {
-        traceId: 'c37d25e7ad46427b57e0da92df678964',
-        spanId: 'bc5248732e6a07cf',
-        operation: 'deleteUser',
-        durationMs: 67,
-        startTime: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 minutes ago
-        status: 'error',
-        attributes: {
-          'custom-tag': 'user-tag',
-          'user-id': '67890',
-          'error-message': 'User not found'
-        },
-        events: [
-          {
-            name: 'Database Query',
-            time: Date.now() - 1000 * 60 * 15 + 20,
-            attributes: { query: 'DELETE FROM users WHERE id = ?' }
-          },
-          {
-            name: 'Error Event',
-            time: Date.now() - 1000 * 60 * 15 + 60,
-            attributes: { message: 'User with ID 67890 not found' }
-          }
-        ]
+    // Function to fetch traces from the API
+    async function fetchTraces(filters = {}) {
+      try {
+        // Build query string from filters
+        const queryParams = new URLSearchParams();
+        if (filters.service) queryParams.append('service', filters.service);
+        if (filters.operation) queryParams.append('operation', filters.operation);
+        if (filters.minDuration) queryParams.append('minDuration', filters.minDuration);
+        if (filters.maxDuration) queryParams.append('maxDuration', filters.maxDuration);
+        if (filters.tags) queryParams.append('tags', filters.tags);
+        if (filters.limit) queryParams.append('limit', filters.limit);
+        
+        // Call the API
+        const response = await fetch(`/debug/traces?${queryParams.toString()}`);
+        if (!response.ok) {
+          throw new Error(`Error fetching traces: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching traces:', error);
+        return { total: 0, filtered: 0, traces: [] };
       }
-    ];
+    }
     
     // Modal operations
     function openModal(traceId) {
       document.getElementById('trace-modal').style.display = 'block';
       document.getElementById('trace-id').value = traceId;
       
-      // Find trace details
-      const trace = sampleTraces.find(t => t.traceId === traceId);
-      if (trace) {
-        document.getElementById('trace-detail').textContent = JSON.stringify(trace, null, 2);
+      // Find trace details through API call
+      fetchTraceDetails(traceId);
+    }
+    
+    // Fetch a specific trace detail
+    async function fetchTraceDetails(traceId) {
+      try {
+        const data = await fetchTraces();
+        const trace = data.traces.find(t => t.traceId === traceId);
+        
+        if (trace) {
+          document.getElementById('trace-detail').textContent = JSON.stringify(trace, null, 2);
+        } else {
+          document.getElementById('trace-detail').textContent = 'Trace details not found';
+        }
+      } catch (error) {
+        console.error('Error fetching trace details:', error);
+        document.getElementById('trace-detail').textContent = `Error fetching trace details: ${error.message}`;
       }
     }
     
@@ -584,98 +551,90 @@
     }
     
     // Search traces
-    function searchTraces() {
-      // In a real app, this would make an API call to fetch traces
-      // For demo purposes, we'll just use the sample data
-      
-      const serviceName = document.getElementById('service-name').value;
+    async function searchTraces() {
+      // Get filter values
+      const service = document.getElementById('service-name').value;
       const operation = document.getElementById('operation').value;
       const minDuration = document.getElementById('min-duration').value;
       const maxDuration = document.getElementById('max-duration').value;
       const tags = document.getElementById('tags').value;
+      const limit = document.getElementById('limit').value;
       
-      // Filter traces based on criteria
-      let filteredTraces = [...sampleTraces];
+      // Show loading state
+      document.getElementById('traces-body').innerHTML = `<tr><td colspan="6" style="text-align: center;">Loading traces...</td></tr>`;
       
-      if (operation) {
-        filteredTraces = filteredTraces.filter(t => t.operation.includes(operation));
+      // Fetch traces
+      const data = await fetchTraces({
+        service,
+        operation,
+        minDuration,
+        maxDuration,
+        tags,
+        limit
+      });
+      
+      // Update count
+      document.getElementById('trace-count').textContent = `${data.filtered} traces found (${data.total} total)`;
+      
+      // Populate table
+      populateTracesTable(data.traces);
+    }
+    
+    // Populate traces table
+    function populateTracesTable(traces) {
+      const tableBody = document.getElementById('traces-body');
+      
+      if (traces.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center;">No traces found</td></tr>`;
+        return;
       }
       
-      if (minDuration) {
-        filteredTraces = filteredTraces.filter(t => t.durationMs >= parseInt(minDuration));
-      }
-      
-      if (maxDuration) {
-        filteredTraces = filteredTraces.filter(t => t.durationMs <= parseInt(maxDuration));
-      }
-      
-      if (tags) {
-        // Parse key=value format
-        const [key, value] = tags.split('=');
-        if (key && value) {
-          filteredTraces = filteredTraces.filter(t => 
-            t.attributes[key] && t.attributes[key].toString() === value
-          );
+      tableBody.innerHTML = traces.map(trace => {
+        const startTime = new Date(trace.startTime);
+        const formattedTime = startTime.toLocaleString();
+        
+        // Determine status badge class
+        let statusBadgeClass = 'badge-success';
+        if (trace.status === 'warning') {
+          statusBadgeClass = 'badge-warning';
+        } else if (trace.status === 'error') {
+          statusBadgeClass = 'badge-error';
         }
-      }
-      
-      // Update table
-      const tbody = document.getElementById('traces-body');
-      tbody.innerHTML = '';
-      
-      if (filteredTraces.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="6" style="text-align: center;">No traces found</td>';
-        tbody.appendChild(row);
-      } else {
-        filteredTraces.forEach(trace => {
-          const row = document.createElement('tr');
-          
-          const startTime = new Date(trace.startTime);
-          const formattedTime = startTime.toLocaleTimeString() + ' ' + 
-                               startTime.toLocaleDateString();
-          
-          // Determine status badge class
-          let statusBadgeClass = 'badge-success';
-          if (trace.status === 'warning') {
-            statusBadgeClass = 'badge-warning';
-          } else if (trace.status === 'error') {
-            statusBadgeClass = 'badge-error';
-          }
-          
-          row.innerHTML = `
-            <td>${trace.traceId.substring(0, 8)}...${trace.traceId.substring(trace.traceId.length - 4)}</td>
+        
+        return `
+          <tr>
+            <td title="${trace.traceId}">${trace.traceId.substring(0, 8)}...</td>
             <td>${trace.operation}</td>
-            <td>${trace.durationMs} ms</td>
+            <td>${trace.durationMs}ms</td>
             <td>${formattedTime}</td>
             <td><span class="badge ${statusBadgeClass}">${trace.status}</span></td>
             <td>
-              <button class="btn" onclick="openModal('${trace.traceId}')">View Details</button>
+              <button class="btn btn-secondary" onclick="openModal('${trace.traceId}')">View Details</button>
             </td>
-          `;
-          
-          tbody.appendChild(row);
-        });
-      }
-      
-      // Update trace count
-      document.getElementById('trace-count').textContent = `${filteredTraces.length} traces found`;
+          </tr>
+        `;
+      }).join('');
     }
     
     // Reset filters
     function resetFilters() {
       document.getElementById('service-name').value = 'nestjs-opentelemetry-example';
       document.getElementById('operation').value = '';
-      document.getElementById('time-range').value = '1h';
       document.getElementById('min-duration').value = '';
       document.getElementById('max-duration').value = '';
       document.getElementById('tags').value = '';
       document.getElementById('limit').value = '50';
+      
+      // Re-search with default filters
+      searchTraces();
     }
     
-    // Initialize with sample data
-    document.addEventListener('DOMContentLoaded', function() {
+    // Load traces when page loads
+    document.addEventListener('DOMContentLoaded', () => {
       searchTraces();
+      
+      // Refresh traces every 30 seconds
+      setInterval(searchTraces, 30000);
     });
   </script>
 </body>

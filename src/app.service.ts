@@ -26,6 +26,39 @@ export class AppService {
   }
 
   /**
+   * Generate a trace with the given parameters
+   */
+  generateTrace(message?: string, customTag?: string, operation?: string, eventMessage?: string) {
+    // Increment the counter
+    this.counter.add(1, { 'endpoint': 'generateTrace' });
+    
+    log.info('Trace API called');
+    
+    // Set default values
+    message = message || 'Hello World';
+    customTag = customTag || 'default-tag';
+    operation = operation || 'default-operation';
+    eventMessage = eventMessage || 'Event message';
+    
+    // Generate trace
+    const result = this.traceService.generateTrace(
+      message,
+      customTag,
+      operation,
+      eventMessage
+    );
+
+    return {
+      traceId: result.traceId,
+      message,
+      customTag,
+      operation,
+      eventMessage,
+      status: result.status
+    };
+  }
+
+  /**
    * Main method to handle the hello endpoint with query parameters
    */
   getHello(queryString?: string): string {
@@ -42,7 +75,7 @@ export class AppService {
     const logParams = this.queryParserService.extractLogParams(queryParams);
     
     // Generate trace
-    const activeSpan = this.traceService.generateTrace(
+    const result = this.traceService.generateTrace(
       traceParams.message,
       traceParams.customTag,
       traceParams.operation,
@@ -51,14 +84,14 @@ export class AppService {
 
     // Generate HTML UI
     return this.templateService.generateTraceEditorUI(
-      activeSpan.spanContext().traceId,
-      activeSpan.spanContext().spanId,
+      result.traceId,
+      'span-id-unknown',  // spanId is no longer available in our new implementation
       traceParams.message,
       traceParams.customTag,
       traceParams.operation,
       traceParams.eventMessage,
-      this.traceService.getAttributes(activeSpan),
-      this.traceService.getEvents(activeSpan),
+      JSON.stringify({}, null, 2),  // attributes as formatted JSON
+      JSON.stringify([], null, 2),  // events as formatted JSON
       traceParams.interval,
       traceParams.autoGenerate,
       logParams.logMessage,

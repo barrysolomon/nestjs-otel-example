@@ -68,6 +68,20 @@ export class AutoLoggerService implements OnApplicationBootstrap, OnApplicationS
   }
 
   /**
+   * Check if the auto-logger is currently running
+   */
+  isRunning(): boolean {
+    return this.intervalId !== null;
+  }
+
+  /**
+   * Get the current interval in milliseconds
+   */
+  getInterval(): number {
+    return this.LOG_INTERVAL_MS;
+  }
+
+  /**
    * Start the automatic log generation at fixed intervals
    */
   startLogGeneration() {
@@ -131,21 +145,23 @@ export class AutoLoggerService implements OnApplicationBootstrap, OnApplicationS
   }
 
   /**
-   * Helper method to select a random value based on weights
+   * Get a random value from an object with weighted probabilities
    */
   private getWeightedRandomValue<T extends string>(weights: Record<T, number>): T {
-    const entries = Object.entries(weights) as [T, number][];
-    const totalWeight = entries.reduce((sum, [_, weight]) => sum + weight, 0);
-    let random = Math.random() * totalWeight;
+    const keys = Object.keys(weights) as T[];
+    const totalWeight = keys.reduce((sum, key) => sum + weights[key], 0);
     
-    for (const [value, weight] of entries) {
-      random -= weight;
-      if (random <= 0) {
-        return value;
+    let random = Math.random() * totalWeight;
+    let weightSum = 0;
+    
+    for (const key of keys) {
+      weightSum += weights[key];
+      if (random <= weightSum) {
+        return key;
       }
     }
     
-    return entries[0][0]; // Fallback to first entry
+    return keys[0]; // Fallback
   }
 
   /**

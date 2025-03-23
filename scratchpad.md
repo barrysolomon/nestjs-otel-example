@@ -67,8 +67,9 @@ Based on the files I've examined, here's the recommended order for rebuilding yo
    ```
 
 kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
-kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
-kubectl port-forward -n observability svc/prometheus-grafana 3000:80
+
+kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
+kubectl port-forward -n observability svc/prometheus-grafana 3001:80
 
 for i in {1..100}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
 
@@ -92,7 +93,7 @@ rm -rf dist node_modules
 npm install --legacy-peer-deps
 npm run build
 
-export PORT=3001
+export PORT=3000
 npm run start:dev
 
 
@@ -103,11 +104,8 @@ docker push barrysolomon/nest-opentelemetry-example:latest
 k delete -f k8s/nestjs-app.yaml  -n nestjs
 k apply -f k8s/nestjs-app.yaml  -n nestjs
 
-
-
-
 # NestJS Application (access your app at http://localhost:3001)
-kubectl port-forward service/nestjs-app-service 3001:80 -n nestjs
+kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
 
 
 for i in {1..10}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; sleep 1; done

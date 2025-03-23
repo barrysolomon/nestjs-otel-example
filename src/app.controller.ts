@@ -1,6 +1,8 @@
-import { Controller, Header, Get, Post, Query, Body } from '@nestjs/common';
+import { Controller, Header, Get, Post, Query, Body, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import { LogService } from './services/log.service';
+import { Response } from 'express';
+import { join } from 'path';
 
 @Controller()
 export class AppController {
@@ -8,6 +10,11 @@ export class AppController {
     private readonly appService: AppService,
     private readonly logService: LogService
   ) {}
+
+  @Get()
+  getIndex(@Res() res: Response) {
+    return res.sendFile(join(process.cwd(), 'public/index.html'));
+  }
 
   @Header('Content-Type', 'text/html')
   @Get()

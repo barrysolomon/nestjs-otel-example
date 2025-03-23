@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logs Viewer - NestJS OpenTelemetry Demo</title>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --primary-dark: #1d4ed8;
+      --sidebar-width: 240px;
+      --header-height: 60px;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .sidebar {
+      width: var(--sidebar-width);
+      background-color: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+    }
+    
+    .sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: center;
+    }
+    
+    .sidebar-header h2 {
+      color: var(--primary-color);
+      font-size: 1.2rem;
+    }
+    
+    .nav-menu {
+      list-style: none;
+      padding: 1rem 0;
+    }
+    
+    .nav-item {
+      margin-bottom: 0.25rem;
+    }
+    
+    .nav-link {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      color: #4b5563;
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .nav-link:hover {
+      background-color: #e2e8f0;
+      color: var(--primary-color);
+    }
+    
+    .nav-link.active {
+      background-color: #e2e8f0;
+      color: var(--primary-dark);
+      border-left: 3px solid var(--primary-color);
+    }
+    
+    .nav-icon {
+      margin-right: 0.75rem;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      width: calc(100% - var(--sidebar-width));
+    }
+    
+    .content-header {
+      height: var(--header-height);
+      padding: 0 2rem;
+      background-color: white;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    
+    .content {
+      padding: 2rem;
+      background-color: #f1f5f9;
+      min-height: calc(100vh - var(--header-height));
+    }
+    
+    .card {
+      background-color: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
+      padding: 1.5rem;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .card-title {
+      font-size: 1.25rem;
+      color: #1e293b;
+    }
+    
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #4b5563;
+    }
+    
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      font-size: 1rem;
+    }
+    
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .btn:hover {
+      background-color: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background-color: #64748b;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #475569;
+    }
+    
+    .status {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 0.375rem;
+    }
+    
+    .status.success {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status.error {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+    
+    .filter-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .filter-row .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+    
+    .logs-container {
+      max-height: 600px;
+      overflow-y: auto;
+      font-family: monospace;
+      background-color: #1e293b;
+      color: #f8fafc;
+      padding: 1rem;
+      border-radius: 0.375rem;
+    }
+    
+    .log-entry {
+      padding: 0.5rem;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .log-entry:hover {
+      background-color: #334155;
+    }
+    
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    
+    .log-timestamp {
+      color: #94a3b8;
+      font-size: 0.875rem;
+    }
+    
+    .log-level {
+      padding: 0.125rem 0.375rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .log-level-info {
+      background-color: #3b82f6;
+      color: white;
+    }
+    
+    .log-level-warn {
+      background-color: #f59e0b;
+      color: white;
+    }
+    
+    .log-level-error {
+      background-color: #ef4444;
+      color: white;
+    }
+    
+    .log-level-debug {
+      background-color: #10b981;
+      color: white;
+    }
+    
+    .log-message {
+      margin-bottom: 0.5rem;
+    }
+    
+    .log-details {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.2s ease-out;
+      background-color: #0f172a;
+      border-radius: 0.25rem;
+      margin-top: 0.5rem;
+    }
+    
+    .log-details.expanded {
+      max-height: 500px;
+      padding: 0.5rem;
+    }
+    
+    .log-metadata {
+      color: #94a3b8;
+      font-size: 0.875rem;
+    }
+    
+    .log-toggle {
+      cursor: pointer;
+      color: #60a5fa;
+      font-size: 0.875rem;
+      text-decoration: underline;
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: center;
+      list-style: none;
+      gap: 0.25rem;
+      margin-top: 1rem;
+    }
+    
+    .page-item {
+      display: inline-block;
+    }
+    
+    .page-link {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      background-color: white;
+      color: #4b5563;
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    
+    .page-link:hover {
+      background-color: #f1f5f9;
+    }
+    
+    .page-item.active .page-link {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+    
+    .page-item.disabled .page-link {
+      color: #9ca3af;
+      pointer-events: none;
+      background-color: #f3f4f6;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>NestJS OpenTelemetry</h2>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item">
+        <a href="/" class="nav-link">
+          <span class="nav-icon">📊</span>
+          Dashboard
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/traces.html" class="nav-link">
+          <span class="nav-icon">🔍</span>
+          Traces Explorer
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/logs.html" class="nav-link active">
+          <span class="nav-icon">📝</span>
+          Logs Viewer
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/otel-config.html" class="nav-link">
+          <span class="nav-icon">⚙️</span>
+          Configuration
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/debug/autolog/start" class="nav-link">
+          <span class="nav-icon">🔄</span>
+          Start Auto-Logging
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/debug/autolog/stop" class="nav-link">
+          <span class="nav-icon">⏹️</span>
+          Stop Auto-Logging
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="content-wrapper">
+    <header class="content-header">
+      <h1>Logs Viewer</h1>
+      <div>
+        <span id="status-indicator" style="display: inline-block; width: 10px; height: 10px; background-color: #10b981; border-radius: 50%; margin-right: 5px;"></span>
+        <span id="status-text">Connected</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Log Filters</h3>
+        </div>
+        
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="service-name">Service Name</label>
+            <input type="text" id="service-name" value="nestjs-opentelemetry-example" />
+          </div>
+          
+          <div class="form-group">
+            <label for="log-level">Log Level</label>
+            <select id="log-level">
+              <option value="all" selected>All Levels</option>
+              <option value="debug">Debug</option>
+              <option value="info">Info</option>
+              <option value="warn">Warning</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="time-range">Time Range</label>
+            <select id="time-range">
+              <option value="15m">Last 15 minutes</option>
+              <option value="30m">Last 30 minutes</option>
+              <option value="1h" selected>Last 1 hour</option>
+              <option value="3h">Last 3 hours</option>
+              <option value="6h">Last 6 hours</option>
+              <option value="12h">Last 12 hours</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="filter-row">
+          <div class="form-group">
+            <label for="search-term">Search Term</label>
+            <input type="text" id="search-term" placeholder="Filter by any text in logs" />
+          </div>
+          
+          <div class="form-group">
+            <label for="context">Context</label>
+            <input type="text" id="context" placeholder="Filter by context (e.g. payment, user)" />
+          </div>
+          
+          <div class="form-group">
+            <label for="limit">Limit</label>
+            <select id="limit">
+              <option value="20">20 logs</option>
+              <option value="50" selected>50 logs</option>
+              <option value="100">100 logs</option>
+              <option value="200">200 logs</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="form-group" style="text-align: right;">
+          <button class="btn" onclick="searchLogs()">Search Logs</button>
+          <button class="btn btn-secondary" onclick="resetFilters()">Reset Filters</button>
+          <button class="btn btn-secondary" onclick="refreshLogs()">
+            <span id="refresh-icon">🔄</span> Auto-refresh
+          </button>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Logs</h3>
+          <span id="log-count">0 logs found</span>
+        </div>
+        
+        <div class="logs-container" id="logs-container">
+          <!-- Logs will be populated here -->
+        </div>
+        
+        <ul class="pagination" id="pagination">
+          <li class="page-item disabled"><a class="page-link" onclick="changePage('prev')">Previous</a></li>
+          <li class="page-item active"><a class="page-link" onclick="changePage(1)">1</a></li>
+          <li class="page-item"><a class="page-link" onclick="changePage(2)">2</a></li>
+          <li class="page-item"><a class="page-link" onclick="changePage(3)">3</a></li>
+          <li class="page-item"><a class="page-link" onclick="changePage('next')">Next</a></li>
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Sample log data for demonstration
+    const sampleLogs = [
+      {
+        timestamp: new Date(Date.now() - 1000 * 30).toISOString(), // 30 seconds ago
+        level: 'info',
+        message: 'User login successful',
+        context: 'Authentication',
+        metadata: {
+          userId: '12345',
+          ip: '192.168.1.1',
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60).toISOString(), // 1 minute ago
+        level: 'warn',
+        message: 'Rate limit threshold approaching',
+        context: 'RateLimiter',
+        metadata: {
+          currentRate: '85/100',
+          endpoint: '/api/data',
+          userId: '12345'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString(), // 2 minutes ago
+        level: 'error',
+        message: 'Failed to process payment',
+        context: 'PaymentService',
+        metadata: {
+          orderId: 'ORD-7890',
+          amount: 49.99,
+          currency: 'USD',
+          errorCode: 'INSUFFICIENT_FUNDS'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(), // 3 minutes ago
+        level: 'debug',
+        message: 'Cache hit for product data',
+        context: 'CacheService',
+        metadata: {
+          key: 'product:1234',
+          timeInCache: '120s'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 4).toISOString(), // 4 minutes ago
+        level: 'info',
+        message: 'New order created',
+        context: 'OrderService',
+        metadata: {
+          orderId: 'ORD-7891',
+          userId: '67890',
+          items: [
+            { productId: 'P-001', quantity: 2, price: 19.99 },
+            { productId: 'P-005', quantity: 1, price: 9.99 }
+          ],
+          total: 49.97
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 minutes ago
+        level: 'warn',
+        message: 'Database connection pool reaching limit',
+        context: 'DatabaseService',
+        metadata: {
+          currentConnections: 85,
+          maxConnections: 100,
+          avgQueryTime: '15ms'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 6).toISOString(), // 6 minutes ago
+        level: 'info',
+        message: 'Successfully processed daily report',
+        context: 'ReportingService',
+        metadata: {
+          reportId: 'DAILY-2023-07-15',
+          processingTime: '3.5s',
+          recordsProcessed: 1250
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 7).toISOString(), // 7 minutes ago
+        level: 'debug',
+        message: 'Request validation completed',
+        context: 'ValidationService',
+        metadata: {
+          endpoint: '/api/users',
+          method: 'POST',
+          validationTime: '5ms'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 8).toISOString(), // 8 minutes ago
+        level: 'error',
+        message: 'Failed to send notification email',
+        context: 'NotificationService',
+        metadata: {
+          userId: '34567',
+          template: 'order-confirmation',
+          error: 'SMTP connection timeout'
+        }
+      },
+      {
+        timestamp: new Date(Date.now() - 1000 * 60 * 9).toISOString(), // 9 minutes ago
+        level: 'info',
+        message: 'API request completed',
+        context: 'APIGateway',
+        metadata: {
+          endpoint: '/api/products',
+          method: 'GET',
+          statusCode: 200,
+          responseTime: '45ms'
+        }
+      }
+    ];
+    
+    let currentPage = 1;
+    const logsPerPage = 5;
+    let filteredLogs = [...sampleLogs];
+    let autoRefreshInterval = null;
+    
+    // Display logs based on current page and filters
+    function displayLogs() {
+      const logsContainer = document.getElementById('logs-container');
+      logsContainer.innerHTML = '';
+      
+      // Calculate which logs to show based on pagination
+      const startIndex = (currentPage - 1) * logsPerPage;
+      const endIndex = startIndex + logsPerPage;
+      const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+      
+      if (paginatedLogs.length === 0) {
+        logsContainer.innerHTML = '<div style="text-align: center; padding: 2rem;">No logs found matching your criteria</div>';
+        return;
+      }
+      
+      paginatedLogs.forEach((log, index) => {
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+        
+        // Format timestamp
+        const timestamp = new Date(log.timestamp);
+        const formattedTime = timestamp.toLocaleTimeString() + ' ' + timestamp.toLocaleDateString();
+        
+        // Set log level class
+        let logLevelClass = 'log-level-info';
+        switch(log.level) {
+          case 'debug':
+            logLevelClass = 'log-level-debug';
+            break;
+          case 'warn':
+            logLevelClass = 'log-level-warn';
+            break;
+          case 'error':
+            logLevelClass = 'log-level-error';
+            break;
+        }
+        
+        logEntry.innerHTML = `
+          <div class="log-header">
+            <span class="log-timestamp">${formattedTime}</span>
+            <span class="log-level ${logLevelClass}">${log.level.toUpperCase()}</span>
+          </div>
+          <div class="log-message">${log.message}</div>
+          <div><small style="color: #94a3b8;">[${log.context}]</small></div>
+          <a class="log-toggle" onclick="toggleLogDetails(${index})">Show details</a>
+          <div class="log-details" id="log-details-${index}">
+            <pre>${JSON.stringify(log.metadata, null, 2)}</pre>
+          </div>
+        `;
+        
+        logsContainer.appendChild(logEntry);
+      });
+      
+      updatePagination();
+    }
+    
+    // Toggle log details
+    function toggleLogDetails(index) {
+      const detailsElement = document.getElementById(`log-details-${index}`);
+      const toggleElement = detailsElement.previousElementSibling;
+      
+      if (detailsElement.classList.contains('expanded')) {
+        detailsElement.classList.remove('expanded');
+        toggleElement.textContent = 'Show details';
+      } else {
+        detailsElement.classList.add('expanded');
+        toggleElement.textContent = 'Hide details';
+      }
+    }
+    
+    // Search logs based on filters
+    function searchLogs() {
+      const serviceName = document.getElementById('service-name').value;
+      const logLevel = document.getElementById('log-level').value;
+      const searchTerm = document.getElementById('search-term').value.toLowerCase();
+      const context = document.getElementById('context').value.toLowerCase();
+      
+      // Filter logs based on criteria
+      filteredLogs = sampleLogs.filter(log => {
+        // Filter by log level
+        if (logLevel !== 'all' && log.level !== logLevel) {
+          return false;
+        }
+        
+        // Filter by search term
+        if (searchTerm && !(
+          log.message.toLowerCase().includes(searchTerm) ||
+          JSON.stringify(log.metadata).toLowerCase().includes(searchTerm)
+        )) {
+          return false;
+        }
+        
+        // Filter by context
+        if (context && !log.context.toLowerCase().includes(context)) {
+          return false;
+        }
+        
+        return true;
+      });
+      
+      // Sort by timestamp (newest first)
+      filteredLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      // Reset to first page
+      currentPage = 1;
+      
+      // Update display
+      displayLogs();
+      
+      // Update log count
+      document.getElementById('log-count').textContent = `${filteredLogs.length} logs found`;
+    }
+    
+    // Update pagination controls
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+      const pagination = document.getElementById('pagination');
+      
+      if (totalPages <= 1) {
+        pagination.style.display = 'none';
+        return;
+      }
+      
+      pagination.style.display = 'flex';
+      
+      // Build pagination HTML
+      let paginationHTML = `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+          <a class="page-link" onclick="changePage('prev')">Previous</a>
+        </li>
+      `;
+      
+      // Determine which page numbers to show
+      let startPage = Math.max(1, currentPage - 1);
+      let endPage = Math.min(totalPages, startPage + 2);
+      
+      // Adjust if we're near the end
+      if (endPage - startPage < 2) {
+        startPage = Math.max(1, endPage - 2);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+          <li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" onclick="changePage(${i})">${i}</a>
+          </li>
+        `;
+      }
+      
+      paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+          <a class="page-link" onclick="changePage('next')">Next</a>
+        </li>
+      `;
+      
+      pagination.innerHTML = paginationHTML;
+    }
+    
+    // Change page
+    function changePage(page) {
+      const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+      
+      if (page === 'prev') {
+        if (currentPage > 1) {
+          currentPage--;
+        }
+      } else if (page === 'next') {
+        if (currentPage < totalPages) {
+          currentPage++;
+        }
+      } else {
+        currentPage = page;
+      }
+      
+      displayLogs();
+    }
+    
+    // Reset filters
+    function resetFilters() {
+      document.getElementById('service-name').value = 'nestjs-opentelemetry-example';
+      document.getElementById('log-level').value = 'all';
+      document.getElementById('time-range').value = '1h';
+      document.getElementById('search-term').value = '';
+      document.getElementById('context').value = '';
+      document.getElementById('limit').value = '50';
+      
+      // Reset to all logs
+      filteredLogs = [...sampleLogs];
+      currentPage = 1;
+      
+      // Update display
+      displayLogs();
+      document.getElementById('log-count').textContent = `${filteredLogs.length} logs found`;
+    }
+    
+    // Toggle auto-refresh
+    function refreshLogs() {
+      if (autoRefreshInterval) {
+        // Turn off auto-refresh
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        document.getElementById('refresh-icon').textContent = '🔄';
+      } else {
+        // Turn on auto-refresh (every 5 seconds)
+        document.getElementById('refresh-icon').textContent = '⏹️';
+        autoRefreshInterval = setInterval(() => {
+          // In a real app, this would fetch new logs
+          // For demo, we'll just add a new log occasionally
+          if (Math.random() > 0.5) {
+            const newLog = {
+              timestamp: new Date().toISOString(),
+              level: ['info', 'debug', 'warn', 'error'][Math.floor(Math.random() * 4)],
+              message: `Auto-generated log entry at ${new Date().toLocaleTimeString()}`,
+              context: ['UserService', 'AuthService', 'APIGateway', 'DatabaseService'][Math.floor(Math.random() * 4)],
+              metadata: {
+                generatedId: Math.random().toString(36).substring(2, 10),
+                randomValue: Math.floor(Math.random() * 1000)
+              }
+            };
+            
+            sampleLogs.unshift(newLog);
+            searchLogs(); // Re-apply filters and update display
+          }
+        }, 5000);
+      }
+    }
+    
+    // Initialize with sample data
+    document.addEventListener('DOMContentLoaded', function() {
+      filteredLogs = [...sampleLogs];
+      filteredLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      displayLogs();
+      document.getElementById('log-count').textContent = `${filteredLogs.length} logs found`;
+    });
+  </script>
+</body>
+</html> 

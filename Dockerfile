@@ -11,6 +11,9 @@ RUN npm install --legacy-peer-deps
 # Copy project files
 COPY . .
 
+# Explicitly copy the public HTML files 
+COPY src/public/*.html ./public/
+
 # Build the NestJS application
 RUN npm run build
 

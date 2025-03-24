@@ -588,22 +588,47 @@
             <h6>Telemetry Endpoints</h6>
             <div class="mb-2">
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="endpointLocal" value="local" checked>
-                <label class="form-check-label" for="endpointLocal">Local Collector</label>
+                <input class="form-check-input" type="checkbox" id="otelEndpoint" checked>
+                <label class="form-check-label" for="otelEndpoint">
+                  Local Collector
+                </label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="endpointLumigo" value="lumigo">
-                <label class="form-check-label" for="endpointLumigo">Lumigo</label>
+                <input class="form-check-input" type="checkbox" id="lumigoEndpoint">
+                <label class="form-check-label" for="lumigoEndpoint">
+                  Lumigo
+                </label>
               </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="endpointCustom" value="custom">
-                <label class="form-check-label" for="endpointCustom">Custom</label>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="sawmillsEndpoint">
+                <label class="form-check-label" for="sawmillsEndpoint">
+                  Sawmills
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="customEndpoint">
+                <label class="form-check-label" for="customEndpoint">
+                  Custom Endpoint
+                </label>
               </div>
             </div>
-            <div class="input-group input-group-sm mb-3" id="customEndpointGroup" style="display: none;">
-              <input type="text" class="form-control" id="customEndpointUrl" placeholder="https://my-collector:4318/v1/traces">
-              <input type="text" class="form-control" id="customEndpointHeader" placeholder="Authorization: Bearer token">
-              <button class="btn btn-outline-secondary" type="button" id="saveCustomEndpoint">Save</button>
+            <div id="customEndpointConfig" style="display: none;">
+              <div class="mb-3">
+                <label for="customTracesEndpoint" class="form-label">Traces Endpoint</label>
+                <input type="text" class="form-control" id="customTracesEndpoint" placeholder="http://example.com:4318">
+              </div>
+              <div class="mb-3">
+                <label for="customLogsEndpoint" class="form-label">Logs Endpoint</label>
+                <input type="text" class="form-control" id="customLogsEndpoint" placeholder="http://example.com:4318">
+              </div>
+              <div class="mb-3">
+                <label for="customMetricsEndpoint" class="form-label">Metrics Endpoint</label>
+                <input type="text" class="form-control" id="customMetricsEndpoint" placeholder="http://example.com:4317">
+              </div>
+              <div class="mb-3">
+                <label for="customAuthHeader" class="form-label">Authorization Header</label>
+                <input type="text" class="form-control" id="customAuthHeader" placeholder="Bearer your-token">
+              </div>
             </div>
             <div class="d-flex justify-content-end">
               <button class="btn btn-sm btn-primary" id="applyEndpoints">Apply Endpoint Changes</button>
@@ -701,17 +726,18 @@
       updateRefreshInterval();
 
       // Endpoint management
-      document.getElementById('endpointCustom').addEventListener('change', function() {
-        document.getElementById('customEndpointGroup').style.display = this.checked ? 'flex' : 'none';
+      document.getElementById('customEndpoint').addEventListener('change', function() {
+        document.getElementById('customEndpointConfig').style.display = this.checked ? 'block' : 'none';
       });
 
       document.getElementById('applyEndpoints').addEventListener('click', function() {
         const endpoints = {
-          local: document.getElementById('endpointLocal').checked,
-          lumigo: document.getElementById('endpointLumigo').checked,
-          custom: document.getElementById('endpointCustom').checked ? {
-            url: document.getElementById('customEndpointUrl').value,
-            header: document.getElementById('customEndpointHeader').value
+          local: document.getElementById('otelEndpoint').checked,
+          lumigo: document.getElementById('lumigoEndpoint').checked,
+          sawmills: document.getElementById('sawmillsEndpoint').checked,
+          custom: document.getElementById('customEndpoint').checked ? {
+            url: document.getElementById('customTracesEndpoint').value,
+            header: document.getElementById('customAuthHeader').value
           } : null
         };
         
@@ -737,28 +763,89 @@
       });
 
       // Load saved endpoint configuration
-      function loadEndpointConfig() {
-        const savedConfig = localStorage.getItem('telemetryEndpoints');
-        if (savedConfig) {
-          try {
-            const endpoints = JSON.parse(savedConfig);
-            document.getElementById('endpointLocal').checked = endpoints.local;
-            document.getElementById('endpointLumigo').checked = endpoints.lumigo;
-            
-            if (endpoints.custom) {
-              document.getElementById('endpointCustom').checked = true;
-              document.getElementById('customEndpointGroup').style.display = 'flex';
-              document.getElementById('customEndpointUrl').value = endpoints.custom.url || '';
-              document.getElementById('customEndpointHeader').value = endpoints.custom.header || '';
-            }
-          } catch (e) {
-            console.error('Failed to parse saved endpoint configuration', e);
+      async function loadEndpointConfig() {
+        try {
+          const response = await fetch('/debug/config/endpoints');
+          const config = await response.json();
+          
+          // Set checkbox states
+          document.getElementById('otelEndpoint').checked = config.otel.enabled;
+          document.getElementById('lumigoEndpoint').checked = config.lumigo.enabled;
+          document.getElementById('sawmillsEndpoint').checked = config.sawmills.enabled;
+          document.getElementById('customEndpoint').checked = config.custom.enabled;
+          
+          // Set custom endpoint values if enabled
+          if (config.custom.enabled) {
+            document.getElementById('customTracesEndpoint').value = config.custom.tracesEndpoint;
+            document.getElementById('customLogsEndpoint').value = config.custom.logsEndpoint;
+            document.getElementById('customMetricsEndpoint').value = config.custom.metricsEndpoint;
+            document.getElementById('customAuthHeader').value = config.custom.authHeader || '';
+            document.getElementById('customEndpointConfig').style.display = 'block';
           }
+        } catch (error) {
+          console.error('Failed to load endpoint configuration:', error);
         }
       }
 
-      // Initialize endpoint configuration
-      loadEndpointConfig();
+      // Apply endpoint configuration
+      async function applyEndpointConfig() {
+        const config = {
+          otel: {
+            enabled: document.getElementById('otelEndpoint').checked,
+            tracesEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+            logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+            metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4317'
+          },
+          lumigo: {
+            enabled: document.getElementById('lumigoEndpoint').checked,
+            tracesEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+            logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+            metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318'
+          },
+          sawmills: {
+            enabled: document.getElementById('sawmillsEndpoint').checked,
+            tracesEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
+            logsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
+            metricsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4317'
+          },
+          custom: {
+            enabled: document.getElementById('customEndpoint').checked,
+            tracesEndpoint: document.getElementById('customTracesEndpoint').value,
+            logsEndpoint: document.getElementById('customLogsEndpoint').value,
+            metricsEndpoint: document.getElementById('customMetricsEndpoint').value,
+            authHeader: document.getElementById('customAuthHeader').value
+          }
+        };
+
+        try {
+          const response = await fetch('/debug/config/endpoints', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(config),
+          });
+
+          if (response.ok) {
+            showToast('Endpoint configuration updated successfully', 'success');
+          } else {
+            showToast('Failed to update endpoint configuration', 'error');
+          }
+        } catch (error) {
+          console.error('Failed to apply endpoint configuration:', error);
+          showToast('Failed to update endpoint configuration', 'error');
+        }
+      }
+
+      // Toggle custom endpoint configuration visibility
+      document.getElementById('customEndpoint').addEventListener('change', function() {
+        document.getElementById('customEndpointConfig').style.display = this.checked ? 'block' : 'none';
+      });
+
+      // Load configurations when page loads
+      document.addEventListener('DOMContentLoaded', function() {
+        loadEndpointConfig();
+      });
     });
 
     // Function to check Auto-Tracer status

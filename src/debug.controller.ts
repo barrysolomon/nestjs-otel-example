@@ -13,6 +13,7 @@ export class DebugController implements OnModuleInit {
     private telemetryEndpoints = {
         local: true,
         lumigo: false,
+        sawmills: false,
         custom: null
     };
     
@@ -45,7 +46,7 @@ export class DebugController implements OnModuleInit {
 
     @Post('metrics')
     handleFailedMetrics(@Body() data: any) {
-        console.log('📥 Received failed metrics:', data.failedMetrics);
+      console.log('📥 Received failed metrics:', data.failedMetrics);
         return { status: 'received', storedMetrics: data.failedMetrics.length };
     }
     
@@ -541,6 +542,7 @@ export class DebugController implements OnModuleInit {
             this.otelConfigService.updateExporters({
                 useLocal: config.local || false,
                 useLumigo: config.lumigo || false,
+                useSawmills: config.sawmills || false,
                 customEndpoint: config.custom || null
             });
             

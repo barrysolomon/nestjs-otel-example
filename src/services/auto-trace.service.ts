@@ -25,9 +25,9 @@ enum TraceType {
 @Injectable()
 export class AutoTraceService implements OnApplicationBootstrap, OnApplicationShutdown {
   autoTraceEnabled = false;
-  autoTraceTimeoutMs = 5000;
+  autoTraceTimeoutMs = 1000;
 
-  errorPercent = 10;
+  errorPercent = 20;
   autoTraceTimeout: NodeJS.Timeout = null;
 
   services = [

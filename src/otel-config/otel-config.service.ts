@@ -15,15 +15,20 @@ export class OtelConfigService {
     collectorType: 'otel', // Default collector
     testMode: process.env.NODE_ENV !== 'production', // Don't actually reconnect in test/dev mode
     collectors: {
-      sawmills: {
-        tracesEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-        logsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-        metricsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4317',
-      },
       otel: {
         tracesEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
         logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
         metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4317',
+      },
+      lumigo: {
+        tracesEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+        logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+        metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
+      },
+      sawmills: {
+        tracesEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
+        logsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
+        metricsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4317',
       },
       custom: {
         tracesEndpoint: '',
@@ -39,8 +44,46 @@ export class OtelConfigService {
   private telemetryConfig = {
     useLocal: true,
     useLumigo: false,
+    useSawmills: false,
     customEndpoint: null
   };
+
+  constructor() {
+    // Check if OpenTelemetry is enabled
+    if (process.env.ENABLE_OTEL === 'true') {
+      this.initializeTelemetry();
+    } else {
+      this.logger.log('OpenTelemetry is disabled. Set ENABLE_OTEL=true to enable telemetry.');
+    }
+  }
+
+  private async initializeTelemetry() {
+    try {
+      // Get the selected collector
+      const selectedCollector = this.config.collectors[this.config.collectorType];
+      
+      // If OTEL_EXPORTER_OTLP_HEADERS is defined, use it for all endpoints
+      if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
+        this.logger.log('Using OTEL_EXPORTER_OTLP_HEADERS for all endpoints');
+        // The headers will be automatically used by the OpenTelemetry SDK
+        // No need to modify the endpoints here
+      }
+
+      // Initialize and start the SDK
+      this.sdk = await initializeOpenTelemetry(
+        'nestjs-opentelemetry-example',
+        selectedCollector.tracesEndpoint,
+        selectedCollector.logsEndpoint,
+        selectedCollector.metricsEndpoint
+      );
+      
+      this.isInitialized = true;
+      this.logger.log('OpenTelemetry initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize OpenTelemetry:', error);
+      throw error;
+    }
+  }
 
   getConfig() {
     return this.config;
@@ -64,20 +107,19 @@ export class OtelConfigService {
       // Get the selected collector
       const selectedCollector = this.config.collectors[this.config.collectorType];
 
-      // Only restart SDK if not in test mode
-      if (!this.config.testMode) {
+      // Only restart SDK if not in test mode and OpenTelemetry is enabled
+      if (!this.config.testMode && process.env.ENABLE_OTEL === 'true') {
         try {
           await this.resetOtelSdk(selectedCollector, this.config.testMode);
         } catch (sdkError) {
           console.error('Error restarting OpenTelemetry SDK:', sdkError);
-          // Return the configuration with error message but don't throw
           return {
             ...this.config,
             error: sdkError.message
           };
         }
       } else {
-        console.log('Test mode enabled, skipping OpenTelemetry SDK restart');
+        console.log('Test mode enabled or OpenTelemetry disabled, skipping OpenTelemetry SDK restart');
       }
 
       return this.config;
@@ -88,9 +130,9 @@ export class OtelConfigService {
   }
 
   private resetOtelSdk(selectedCollector: CollectorConfig, testMode: boolean): Promise<void> {
-    // If in test mode, don't actually restart the SDK
-    if (testMode) {
-      console.log('Test mode enabled: Not actually restarting OpenTelemetry SDK');
+    // If in test mode or OpenTelemetry is disabled, don't actually restart the SDK
+    if (testMode || process.env.ENABLE_OTEL !== 'true') {
+      console.log('Test mode enabled or OpenTelemetry disabled: Not restarting OpenTelemetry SDK');
       return Promise.resolve();
     }
 
@@ -102,7 +144,6 @@ export class OtelConfigService {
             await this.sdk.shutdown();
           } catch (err) {
             console.warn('Error shutting down previous SDK instance:', err);
-            // Continue with initialization despite shutdown errors
           }
         }
 
@@ -149,20 +190,18 @@ export class OtelConfigService {
   async updateExporters(config: {
     useLocal: boolean;
     useLumigo: boolean;
+    useSawmills: boolean;
     customEndpoint: any | null;
   }): Promise<boolean> {
     this.logger.log(`Updating OpenTelemetry exporters: ${JSON.stringify(config)}`);
     this.telemetryConfig = config;
 
     try {
-      // Store the new configuration
-      // For OpenTelemetry, we would typically need to restart the provider
-      // In a production system, we would need to implement hot-reloading or
-      // update the collector configuration dynamically
-
-      // For now, we'll just store the configuration and apply it on next restart
-      // A more advanced implementation would restart the provider or update the
-      // collector configuration directly via its API
+      // Only proceed if OpenTelemetry is enabled
+      if (process.env.ENABLE_OTEL !== 'true') {
+        this.logger.log('OpenTelemetry is disabled. Skipping exporter update.');
+        return false;
+      }
 
       // Save configuration to env variables for the collector to access
       if (config.customEndpoint && config.customEndpoint.url) {
@@ -171,9 +210,6 @@ export class OtelConfigService {
           process.env.OTEL_EXPORTER_OTLP_HEADERS = config.customEndpoint.header;
         }
       }
-      
-      // In a real implementation, we would restart the OpenTelemetry provider here
-      // or signal the collector to reload its configuration
       
       this.logger.log('Telemetry exporter configuration updated. Will apply on next restart.');
       return true;

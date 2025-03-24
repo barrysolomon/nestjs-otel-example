@@ -40,6 +40,9 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
 
+            - name: ENABLE_OTEL
+              value: "false"
+
             - name: OTEL_SERVICE_NAME
               value: "nestjs-app"
 
@@ -57,25 +60,32 @@ spec:
 
             # Setting specific endpoints for each signal type using HTTP
             - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              #value: "ga-otlp.lumigo-tracer-edge.golumigo.com"
               value: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"
-              
+
+
             - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
               value: "http://otel-collector.observability.svc.cluster.local:4318/v1/logs"
               
             - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
               value: "http://otel-collector.observability.svc.cluster.local:4318/v1/metrics"
 
             # Keeping this for backward compatibility
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
               value: "http://otel-collector.observability.svc.cluster.local:4318"
 
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              #value: "https"
               value: "http"
 
             - name: NODE_ENV
               value: "production"
               
             - name: OTEL_EXPORTER_OTLP_INSECURE
+              #value: "false"
               value: "true"
 
             - name: OTEL_EXPORTER_OTLP_HEADERS
@@ -101,18 +111,18 @@ spec:
               cpu: "500m"
               memory: "1Gi"
               
-#          livenessProbe:
-#            httpGet:
-#              path: /health
-#              port: 3000
-#            initialDelaySeconds: 30
-#            periodSeconds: 15
-#          readinessProbe:
-#            httpGet:
-#              path: /health
-#              port: 3000
-#            initialDelaySeconds: 15
-#            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 60
 
 ---
 apiVersion: v1

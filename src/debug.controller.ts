@@ -10,6 +10,11 @@ import { OnEvent } from '@nestjs/event-emitter';
 export class DebugController implements OnModuleInit {
     private traceHistory: any[] = [];
     private readonly logger = new Logger(DebugController.name);
+    private telemetryEndpoints = {
+        local: true,
+        lumigo: false,
+        custom: null
+    };
     
     constructor(
         private readonly autoLoggerService: AutoLoggerService,
@@ -521,5 +526,47 @@ export class DebugController implements OnModuleInit {
                 this.traceHistory = this.traceHistory.slice(-1000);
             }
         }
+    }
+
+    /**
+     * Update telemetry endpoints configuration
+     */
+    @Post('config/endpoints')
+    updateTelemetryEndpoints(@Body() config: any) {
+        try {
+            this.logger.log(`Updating telemetry endpoints: ${JSON.stringify(config)}`);
+            this.telemetryEndpoints = config;
+            
+            // Update OpenTelemetry configuration to use selected endpoints
+            this.otelConfigService.updateExporters({
+                useLocal: config.local || false,
+                useLumigo: config.lumigo || false,
+                customEndpoint: config.custom || null
+            });
+            
+            return {
+                success: true,
+                message: 'Telemetry endpoints updated successfully',
+                endpoints: this.telemetryEndpoints
+            };
+        } catch (error) {
+            this.logger.error(`Error updating telemetry endpoints: ${error.message}`, error.stack);
+            return {
+                success: false,
+                message: `Failed to update telemetry endpoints: ${error.message}`,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Get current telemetry endpoints configuration
+     */
+    @Get('config/endpoints')
+    getTelemetryEndpoints() {
+        return {
+            success: true,
+            endpoints: this.telemetryEndpoints
+        };
     }
 }

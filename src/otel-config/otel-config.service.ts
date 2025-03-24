@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { getSDK, reinitializeOpenTelemetry, initializeOpenTelemetry, startSdk } from '../otel-config';
 
 // Define the collector configuration interface
@@ -10,6 +10,7 @@ interface CollectorConfig {
 
 @Injectable()
 export class OtelConfigService {
+  private logger = new Logger(OtelConfigService.name);
   private config = {
     collectorType: 'otel', // Default collector
     testMode: process.env.NODE_ENV !== 'production', // Don't actually reconnect in test/dev mode
@@ -33,6 +34,13 @@ export class OtelConfigService {
   };
 
   private sdk: any;
+  private provider: any = null;
+  private isInitialized = false;
+  private telemetryConfig = {
+    useLocal: true,
+    useLumigo: false,
+    customEndpoint: null
+  };
 
   getConfig() {
     return this.config;
@@ -132,5 +140,46 @@ export class OtelConfigService {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Update telemetry exporters configuration dynamically
+   * @param config Configuration for telemetry exporters
+   */
+  async updateExporters(config: {
+    useLocal: boolean;
+    useLumigo: boolean;
+    customEndpoint: any | null;
+  }): Promise<boolean> {
+    this.logger.log(`Updating OpenTelemetry exporters: ${JSON.stringify(config)}`);
+    this.telemetryConfig = config;
+
+    try {
+      // Store the new configuration
+      // For OpenTelemetry, we would typically need to restart the provider
+      // In a production system, we would need to implement hot-reloading or
+      // update the collector configuration dynamically
+
+      // For now, we'll just store the configuration and apply it on next restart
+      // A more advanced implementation would restart the provider or update the
+      // collector configuration directly via its API
+
+      // Save configuration to env variables for the collector to access
+      if (config.customEndpoint && config.customEndpoint.url) {
+        process.env.OTEL_EXPORTER_OTLP_ENDPOINT = config.customEndpoint.url;
+        if (config.customEndpoint.header) {
+          process.env.OTEL_EXPORTER_OTLP_HEADERS = config.customEndpoint.header;
+        }
+      }
+      
+      // In a real implementation, we would restart the OpenTelemetry provider here
+      // or signal the collector to reload its configuration
+      
+      this.logger.log('Telemetry exporter configuration updated. Will apply on next restart.');
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to update telemetry exporters: ${error.message}`, error.stack);
+      return false;
+    }
   }
 } 

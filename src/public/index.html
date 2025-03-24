@@ -551,6 +551,66 @@
           </div>
         </div>
       </div>
+
+      <!-- Monitoring Panel Card -->
+      <div class="card mt-3">
+        <div class="card-header">
+          <h5>Monitoring Panel</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+            <!-- Existing controls -->
+            <div class="d-flex flex-wrap align-items-center">
+              <div class="me-3">
+                <label class="me-2" for="refreshInterval">Refresh:</label>
+                <select id="refreshInterval" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                  <option value="0">Off</option>
+                  <option value="1000">1s</option>
+                  <option value="2000">2s</option>
+                  <option value="5000" selected>5s</option>
+                  <option value="10000">10s</option>
+                  <option value="30000">30s</option>
+                </select>
+              </div>
+              <div class="me-3">
+                <button class="btn btn-sm btn-primary me-2" id="refreshNow">Refresh Now</button>
+                <span class="badge" id="autoRefreshBadge">Auto Refresh</span>
+              </div>
+              <div class="me-3">
+                <span class="badge me-2" id="autoTraceBadge">Auto Trace</span>
+                <span class="badge" id="autoLoggerBadge">Auto Logger</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- New Telemetry Endpoints Section -->
+          <div class="mt-3">
+            <h6>Telemetry Endpoints</h6>
+            <div class="mb-2">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="endpointLocal" value="local" checked>
+                <label class="form-check-label" for="endpointLocal">Local Collector</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="endpointLumigo" value="lumigo">
+                <label class="form-check-label" for="endpointLumigo">Lumigo</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="endpointCustom" value="custom">
+                <label class="form-check-label" for="endpointCustom">Custom</label>
+              </div>
+            </div>
+            <div class="input-group input-group-sm mb-3" id="customEndpointGroup" style="display: none;">
+              <input type="text" class="form-control" id="customEndpointUrl" placeholder="https://my-collector:4318/v1/traces">
+              <input type="text" class="form-control" id="customEndpointHeader" placeholder="Authorization: Bearer token">
+              <button class="btn btn-outline-secondary" type="button" id="saveCustomEndpoint">Save</button>
+            </div>
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-sm btn-primary" id="applyEndpoints">Apply Endpoint Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -639,6 +699,66 @@
       
       // Initialize auto-refresh if enabled
       updateRefreshInterval();
+
+      // Endpoint management
+      document.getElementById('endpointCustom').addEventListener('change', function() {
+        document.getElementById('customEndpointGroup').style.display = this.checked ? 'flex' : 'none';
+      });
+
+      document.getElementById('applyEndpoints').addEventListener('click', function() {
+        const endpoints = {
+          local: document.getElementById('endpointLocal').checked,
+          lumigo: document.getElementById('endpointLumigo').checked,
+          custom: document.getElementById('endpointCustom').checked ? {
+            url: document.getElementById('customEndpointUrl').value,
+            header: document.getElementById('customEndpointHeader').value
+          } : null
+        };
+        
+        // Save to localStorage
+        localStorage.setItem('telemetryEndpoints', JSON.stringify(endpoints));
+        
+        // Send to backend
+        fetch('/debug/config/endpoints', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(endpoints)
+        })
+        .then(response => response.json())
+        .then(data => {
+          alert(`Endpoint configuration ${data.success ? 'updated' : 'failed'}: ${data.message}`);
+        })
+        .catch(error => {
+          console.error('Error updating endpoints:', error);
+          alert('Failed to update endpoint configuration');
+        });
+      });
+
+      // Load saved endpoint configuration
+      function loadEndpointConfig() {
+        const savedConfig = localStorage.getItem('telemetryEndpoints');
+        if (savedConfig) {
+          try {
+            const endpoints = JSON.parse(savedConfig);
+            document.getElementById('endpointLocal').checked = endpoints.local;
+            document.getElementById('endpointLumigo').checked = endpoints.lumigo;
+            
+            if (endpoints.custom) {
+              document.getElementById('endpointCustom').checked = true;
+              document.getElementById('customEndpointGroup').style.display = 'flex';
+              document.getElementById('customEndpointUrl').value = endpoints.custom.url || '';
+              document.getElementById('customEndpointHeader').value = endpoints.custom.header || '';
+            }
+          } catch (e) {
+            console.error('Failed to parse saved endpoint configuration', e);
+          }
+        }
+      }
+
+      // Initialize endpoint configuration
+      loadEndpointConfig();
     });
 
     // Function to check Auto-Tracer status

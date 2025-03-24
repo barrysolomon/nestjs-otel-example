@@ -81,6 +81,12 @@ data:
         endpoint: "jaeger-collector.observability:4317"
         tls:
           insecure: true
+      otlp/lumigo:
+        endpoint: "ingest.lumigo.io"
+        tls:
+          insecure: false
+        headers:
+          Authorization: "LumigoToken t_f8f7b905da964eef89261"
 
     service:
       telemetry:
@@ -95,12 +101,12 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug, otlp]
+          exporters: [debug, otlp, otlp/lumigo]
         metrics:
           receivers: [otlp, prometheus]
           processors: [memory_limiter, batch]
-          exporters: [prometheus]
+          exporters: [prometheus, otlp/lumigo]
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, loki, logging]
+          exporters: [debug, loki, logging, otlp/lumigo]

@@ -10,6 +10,9 @@ import { DebugController } from './debug.controller';
 import { HttpModule } from '@nestjs/axios';
 import { APP_FILTER } from '@nestjs/core';
 import { OtelConfigModule } from './otel-config/otel-config.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 // Our services
 import { TraceService } from './services/trace.service';
@@ -29,8 +32,14 @@ import { AutoTraceService } from './services/auto-trace.service';
           }),
         ]
       : []),
-      HttpModule,
-      OtelConfigModule,
+    HttpModule,
+    OtelConfigModule,
+    EventEmitterModule.forRoot(),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'src', 'public'),
+      serveRoot: '/',
+      renderPath: '*',
+    }),
   ],
   controllers: [
     HealthController,

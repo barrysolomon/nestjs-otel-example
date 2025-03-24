@@ -1,13 +1,15 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, OnModuleInit, Logger } from '@nestjs/common';
 import { AutoLoggerService } from './services/auto-logger.service';
 import { AutoTraceService } from './services/auto-trace.service';
 import { OtelConfigService } from './otel-config/otel-config.service';
 import { LogService } from './services/log.service';
 import { TraceService } from './services/trace.service';
+import { OnEvent } from '@nestjs/event-emitter';
 
 @Controller('debug')
-export class DebugController {
+export class DebugController implements OnModuleInit {
     private traceHistory: any[] = [];
+    private readonly logger = new Logger(DebugController.name);
     
     constructor(
         private readonly autoLoggerService: AutoLoggerService,
@@ -16,6 +18,11 @@ export class DebugController {
         private readonly logService: LogService,
         private readonly traceService: TraceService
     ) {}
+
+    onModuleInit() {
+        this.logger.log('DebugController initialized');
+        // Initialize any resources or load data if needed
+    }
 
     @Get('env')
     getEnvironment() {
@@ -70,9 +77,11 @@ export class DebugController {
 
     @Get('autotrace/status')
     getAutoTraceStatus() {
+        const state = this.autoTraceService.getState();
         return {
-            running: this.autoTraceService.isRunning(),
-            interval: this.autoTraceService.getInterval(),
+            running: state.enabled,
+            interval: state.timeoutMs,
+            errorRate: state.errorRate,
             timestamp: new Date().toISOString()
         };
     }
@@ -80,18 +89,43 @@ export class DebugController {
     @Get('autotrace/start')
     startAutoTracing(@Query('interval') intervalMs?: string) {
         const interval = intervalMs ? parseInt(intervalMs) : undefined;
-        this.autoTraceService.startTraceGeneration(interval);
+        
+        // Test that traceHistory works by directly adding a trace
+        console.log('Debug: Adding test trace to traceHistory');
+        const testTrace = {
+            id: `trace_test_${Date.now()}`,
+            traceId: `trace_test_${Date.now()}`,
+            spanId: `span_test_${Date.now()}`,
+            operation: 'test_trace',
+            message: 'Test trace added directly by controller',
+            timestamp: new Date().toISOString(),
+            durationMs: 10,
+            attributes: {},
+            events: [],
+            serviceName: 'nestjs-opentelemetry-example',
+            status: 'success'
+        };
+        this.traceHistory.unshift(testTrace);
+        console.log(`Debug: After adding test trace, traceHistory length is ${this.traceHistory.length}`);
+        
+        // Start the auto-tracer
+        this.autoTraceService.setEnabled(true);
+        if (interval) {
+            this.autoTraceService.setTimeoutMs(interval);
+        }
+        
+        const state = this.autoTraceService.getState();
         return {
             status: 'success',
             message: 'Auto trace generation started',
-            interval: this.autoTraceService.getInterval(),
+            interval: state.timeoutMs,
             timestamp: new Date().toISOString()
         };
     }
 
     @Get('autotrace/stop')
     stopAutoTracing() {
-        this.autoTraceService.stopTraceGeneration();
+        this.autoTraceService.setEnabled(false);
         return {
             status: 'success',
             message: 'Auto trace generation stopped',
@@ -113,6 +147,7 @@ export class DebugController {
         @Query('search') search?: string
     ) {
         try {
+            console.log(`getTraces called - traceHistory length: ${this.traceHistory.length}`);
             // Get all traces from our local history
             let traces = [...this.traceHistory];
             let filtered = traces.length;
@@ -249,65 +284,40 @@ export class DebugController {
 
     @Post('trace')
     recordTrace(@Body() traceData: any) {
-        console.log('Trace API called:', traceData);
+        console.log('Record trace API called', traceData);
         try {
-            // Extract data from the request
-            const operation = traceData.operation || 'manual-trace';
-            const message = traceData.message || 'Manual trace';
-            const includeError = operation.includes('error');
-
-            // Generate a unique trace ID
-            const timestamp = Date.now();
-            const random = Math.floor(Math.random() * 1000);
-            const traceId = `trace_${timestamp.toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
-            const spanId = `span_${timestamp.toString(16)}_${Math.random().toString(16).substring(2, 8)}`;
-
-            // Extract custom attributes from the payload
-            const attributes = {};
-            Object.keys(traceData).forEach(key => {
-                if (key !== 'operation' && key !== 'message') {
-                    attributes[key] = traceData[key];
-                }
+            // Generate trace using trace service
+            console.log('Calling traceService.storeTrace with:', { 
+                message: traceData.message || 'Manual trace', 
+                operation: traceData.operation || 'manual-trace'
             });
-
-            // Create a trace object
-            const trace = {
-                id: `trace_${timestamp}_${random}`,
-                traceId,
-                spanId,
-                operation,
-                message,
-                timestamp: new Date().toISOString(),
-                durationMs: Math.floor(Math.random() * 190) + 10,
-                attributes,
-                events: [{
-                    name: 'manual.trace',
-                    timestamp: new Date().toISOString(),
-                    attributes: { source: 'manual' }
-                }],
-                serviceName: 'nestjs-opentelemetry-example',
-                status: includeError ? 'error' : 'success'
-            };
-
-            // Store the trace in our history
-            this.traceHistory.push(trace);
-
-            // Trim history if needed
-            if (this.traceHistory.length > 1000) {
-                this.traceHistory = this.traceHistory.slice(0, 1000);
+            const trace = this.traceService.storeTrace(
+                null, 
+                traceData.message || 'Manual trace', 
+                traceData.operation || 'manual-trace'
+            );
+            
+            // If we received a trace back, add it to our local traceHistory
+            if (trace) {
+                console.log('Received trace back from traceService, adding to traceHistory', trace.id);
+                this.traceHistory.unshift(trace);
+                // Keep history size reasonable
+                if (this.traceHistory.length > 1000) {
+                    this.traceHistory.pop();
+                }
+                console.log(`TraceHistory length is now: ${this.traceHistory.length}`);
             }
-
-            console.log(`Recorded trace with ID: ${traceId}`);
-            return { 
-                status: 'success', 
+            
+            return {
+                status: 'success',
                 message: 'Trace recorded successfully',
-                traceId: traceId
+                traceId: trace.traceId || 'unknown'
             };
         } catch (error) {
             console.error('Error recording trace:', error);
-            return { 
-                status: 'error', 
-                message: error.message || 'Unknown error'
+            return {
+                status: 'error',
+                message: `Error recording trace: ${error.message}`
             };
         }
     }
@@ -492,6 +502,24 @@ export class DebugController {
                 status: 'error',
                 message: error.message || 'Unknown error'
             };
+        }
+    }
+
+    /**
+     * Handle trace generated events from the AutoTraceService
+     */
+    @OnEvent('trace.generated')
+    handleTraceGenerated(payload: any) {
+        this.logger.debug(`Received trace.generated event with traceId: ${payload.traceId}`);
+        
+        // Add to trace history
+        if (this.traceHistory && payload) {
+            this.traceHistory.push(payload);
+            
+            // Keep history within limits
+            if (this.traceHistory.length > 1000) {
+                this.traceHistory = this.traceHistory.slice(-1000);
+            }
         }
     }
 }

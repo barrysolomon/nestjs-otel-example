@@ -349,13 +349,13 @@ export class TraceService {
         } catch (spanError) {
           console.error('Error getting span context:', spanError);
           // Generate random IDs instead
-          traceId = `err_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
-          spanId = `err_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
+          traceId = `trace_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
+          spanId = `span_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
         }
       } else {
         // Generate random IDs for external traces without span
-        traceId = `ext_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
-        spanId = `ext_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
+        traceId = `trace_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
+        spanId = `span_${Date.now().toString(16)}_${Math.random().toString(16).substring(2, 10)}`;
       }
       
       // Generate random duration between 10ms and 200ms for simulation
@@ -392,27 +392,31 @@ export class TraceService {
         this.pruneOldTraces();
       }
       
-      // Save to file periodically (every 10 traces)
-      if (this.totalTraceCount % 10 === 0) {
+      // Periodically save to file (every 50 traces)
+      if (this.totalTraceCount % 50 === 0) {
         this.saveTracesToFile();
       }
-      
-      // Debug log count
-      if (this.totalTraceCount % 100 === 0) {
-        console.log(`Trace history: ${this.traceHistory.length} stored, ${this.totalTraceCount} total`);
-      }
-      
+
+      // Return the created trace object
       return traceData;
     } catch (error) {
       console.error('Error storing trace:', error);
-      // Return a minimal trace object even in case of error
+      // Create a minimal trace object in case of error
       return {
-        id: `error_${Date.now()}`,
-        traceId: `err_${Date.now().toString(16)}`,
-        spanId: `err_${Date.now().toString(16)}`,
+        id: `error_trace_${Date.now()}`,
+        traceId: `error_${Date.now().toString(16)}`,
+        spanId: `error_${Date.now().toString(16)}`,
         operation,
-        message: `Error storing trace: ${error.message}`,
+        message: `Error storing trace: ${message}`,
         timestamp: new Date().toISOString(),
+        durationMs: 0,
+        attributes: { error: 'true' },
+        events: [{
+          name: 'error',
+          timestamp: new Date().toISOString(),
+          attributes: { error: 'true' }
+        }],
+        serviceName: 'nestjs-opentelemetry-example',
         status: 'error'
       };
     }

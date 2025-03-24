@@ -57,7 +57,7 @@ export class AutoLoggerService implements OnApplicationBootstrap, OnApplicationS
    */
   onApplicationBootstrap() {
     log.info('Auto Logger Service starting');
-    this.startLogGeneration();
+    // We don't auto-start to prevent log overload
   }
 
   /**

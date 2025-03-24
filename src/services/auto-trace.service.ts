@@ -1,6 +1,10 @@
-import { Injectable, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, OnApplicationShutdown, Logger } from '@nestjs/common';
 import { TraceService } from './trace.service';
 import { log } from '../logger.config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Types of trace operations to generate
@@ -15,199 +19,322 @@ enum TraceType {
 }
 
 /**
- * Service that automatically generates random traces with different operations and attributes
+ * Service that can automatically generate traces periodically.
+ * Internally uses the trace.service to store traces.
  */
 @Injectable()
 export class AutoTraceService implements OnApplicationBootstrap, OnApplicationShutdown {
-  private intervalId: NodeJS.Timeout | null = null;
-  private traceIntervalMs = 3000; // Default: Generate traces every 3 seconds
-  private readonly MIN_INTERVAL_MS = 10; // Minimum allowed interval is 10ms
-  
-  // Weights for random distribution - higher numbers mean more frequent occurrence
-  private readonly TRACE_TYPE_WEIGHTS = {
-    [TraceType.API_REQUEST]: 10,
-    [TraceType.DATABASE_QUERY]: 8,
-    [TraceType.USER_ACTION]: 6,
-    [TraceType.BACKGROUND_JOB]: 4,
-    [TraceType.MICROSERVICE_CALL]: 5,
-    [TraceType.EXTERNAL_API]: 3
+  autoTraceEnabled = false;
+  autoTraceTimeoutMs = 5000;
+
+  errorPercent = 10;
+  autoTraceTimeout: NodeJS.Timeout = null;
+
+  services = [
+    'customer-service',
+    'order-service',
+    'payment-service',
+    'inventory-service',
+    'shipping-service',
+  ];
+
+  operations = {
+    'customer-service': [
+      'getCustomer',
+      'createCustomer',
+      'updateCustomer',
+      'authenticate',
+    ],
+    'order-service': ['getOrder', 'createOrder', 'updateOrder', 'cancelOrder'],
+    'payment-service': ['processPayment', 'refundPayment', 'getPaymentDetails'],
+    'inventory-service': [
+      'checkStock',
+      'reserveItem',
+      'releaseItem',
+      'updateInventory',
+    ],
+    'shipping-service': [
+      'calculateShipping',
+      'createShipment',
+      'trackShipment',
+      'updateShipment',
+    ],
   };
 
-  constructor(private readonly traceService: TraceService) {}
+  private enabled = false;
+  private interval: NodeJS.Timeout;
+  private timeoutMs = 5000;
+  private readonly logger = new Logger(AutoTraceService.name);
+  private lastOperation = 'default-operation';
+  private errorRate = 0.1; // 10% error rate
+  private currentTraceId: string = null;
+  private configPath = path.join(process.cwd(), 'auto-trace-config.json');
 
-  /**
-   * Start generating traces when the application starts, but don't auto-start
-   */
+  constructor(private readonly traceService: TraceService, private readonly eventEmitter: EventEmitter2) {
+    // Initialize with stored state if available
+    try {
+      if (fs.existsSync(this.configPath)) {
+        const storedState = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+        this.enabled = storedState.enabled || false;
+        this.timeoutMs = storedState.timeoutMs || 5000;
+        this.errorRate = storedState.errorRate || 0.1;
+        this.autoTraceEnabled = this.enabled;
+        this.autoTraceTimeoutMs = this.timeoutMs;
+        this.errorPercent = this.errorRate * 100;
+      }
+    } catch (e) {
+      // Ignore errors if file is not available or invalid
+      this.logger.debug('Config file not available, using default auto-trace settings');
+    }
+
+    if (this.enabled) {
+      this.startAutoTrace();
+    }
+  }
+
   onApplicationBootstrap() {
-    log.info('Auto Trace Service initialized');
-    // We don't auto-start unlike the Logger
+    if (this.autoTraceEnabled) {
+      this.startGeneratingTraces();
+    }
   }
 
-  /**
-   * Stop generating traces when the application shuts down
-   */
   onApplicationShutdown() {
-    this.stopTraceGeneration();
-    log.info('Auto Trace Service stopped');
+    this.stopGeneratingTraces();
   }
 
-  /**
-   * Check if the auto-tracer is currently running
-   */
-  isRunning(): boolean {
-    return this.intervalId !== null;
+  startGeneratingTraces() {
+    this.logger.debug(`Starting trace generation - enabled: ${this.autoTraceEnabled}, timeout: ${this.autoTraceTimeoutMs}ms`);
+    this.autoTraceEnabled = true;
+    this.startAutoTraceTimeout();
   }
 
-  /**
-   * Get the current interval in milliseconds
-   */
-  getInterval(): number {
-    return this.traceIntervalMs;
-  }
+  stopGeneratingTraces() {
+    this.logger.debug(`Stopping trace generation - was enabled: ${this.autoTraceEnabled}`);
 
-  /**
-   * Set the interval for trace generation (minimum 10ms)
-   * @param intervalMs interval in milliseconds
-   */
-  setInterval(intervalMs: number): void {
-    // Ensure interval is not less than minimum allowed
-    this.traceIntervalMs = Math.max(this.MIN_INTERVAL_MS, intervalMs);
-    
-    // If already running, restart with new interval
-    if (this.isRunning()) {
-      this.stopTraceGeneration();
-      this.startTraceGeneration();
+    this.autoTraceEnabled = false;
+    if (this.autoTraceTimeout) {
+      clearTimeout(this.autoTraceTimeout);
+      this.autoTraceTimeout = null;
     }
-    
-    log.info(`Auto Tracer interval set to ${this.traceIntervalMs}ms`);
   }
 
-  /**
-   * Start the automatic trace generation at fixed intervals
-   * @param intervalMs optional interval in milliseconds
-   */
-  startTraceGeneration(intervalMs?: number): void {
-    // Set new interval if provided
-    if (intervalMs !== undefined) {
-      this.setInterval(intervalMs);
-    }
-    
-    // Stop if already running
-    if (this.intervalId) {
-      this.stopTraceGeneration();
+  setAutoTraceTimeoutMs(timeoutMs: number) {
+    if (isNaN(timeoutMs) || timeoutMs < 100) {
+      return;
     }
 
-    this.intervalId = setInterval(() => {
+    this.logger.debug(`Setting new auto-trace timeout: ${timeoutMs}ms`);
+
+    this.autoTraceTimeoutMs = timeoutMs;
+    if (this.autoTraceEnabled) {
+      this.startAutoTraceTimeout();
+    }
+    this.timeoutMs = timeoutMs;
+    this.saveState();
+  }
+
+  setErrorPercent(errorPercent: number) {
+    if (isNaN(errorPercent) || errorPercent < 0 || errorPercent > 100) {
+      return;
+    }
+
+    this.logger.debug(`Setting error percent: ${errorPercent}%`);
+
+    this.errorPercent = errorPercent;
+    this.errorRate = errorPercent / 100;
+    this.saveState();
+  }
+
+  private saveState(): void {
+    try {
+      const state = {
+        enabled: this.enabled,
+        timeoutMs: this.timeoutMs,
+        errorRate: this.errorRate,
+      };
+      fs.writeFileSync(this.configPath, JSON.stringify(state, null, 2));
+      this.logger.debug(`Auto-trace state saved to ${this.configPath}`);
+    } catch (e) {
+      this.logger.error(`Failed to save auto-trace state: ${e.message}`);
+    }
+  }
+
+  private startAutoTraceTimeout() {
+    if (this.autoTraceTimeout) {
+      clearTimeout(this.autoTraceTimeout);
+      this.autoTraceTimeout = null;
+    }
+
+    // create timeout
+    this.autoTraceTimeout = setTimeout(() => {
       this.generateRandomTrace();
-    }, this.traceIntervalMs);
 
-    log.info(`Auto Tracer started - Generating traces every ${this.traceIntervalMs / 1000} seconds`);
-  }
-
-  /**
-   * Stop the automatic trace generation
-   */
-  stopTraceGeneration() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      log.info('Auto Tracer stopped');
-    }
-  }
-
-  /**
-   * Generate a random trace with weighted distribution of type
-   */
-  generateRandomTrace() {
-    const traceType = this.getWeightedRandomValue(this.TRACE_TYPE_WEIGHTS);
-    const operationName = this.getOperationNameForType(traceType);
-    
-    // Generate the trace via trace service with the new method signature
-    this.traceService.generateTrace(operationName);
-  }
-
-  /**
-   * Get operation name based on trace type
-   */
-  private getOperationNameForType(traceType: TraceType): string {
-    const timestamp = new Date().toLocaleTimeString();
-    
-    switch (traceType) {
-      case TraceType.API_REQUEST:
-        const apiMethod = this.getRandomElement(['GET', 'POST', 'PUT', 'DELETE']);
-        const endpoint = this.getRandomElement(['/api/users', '/api/products', '/api/orders', '/api/auth']);
-        return `http_${apiMethod.toLowerCase()}_${endpoint.replace(/\//g, '_')}`;
-        
-      case TraceType.DATABASE_QUERY:
-        const dbOperation = this.getRandomElement(['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
-        const table = this.getRandomElement(['users', 'products', 'orders', 'payments']);
-        return `database_${dbOperation.toLowerCase()}_${table}`;
-        
-      case TraceType.USER_ACTION:
-        const userAction = this.getRandomElement(['login', 'logout', 'profile_update', 'password_change']);
-        return `user_action_${userAction}`;
-        
-      case TraceType.BACKGROUND_JOB:
-        const job = this.getRandomElement(['email_sending', 'data_processing', 'cleanup', 'report_generation']);
-        return `job_${job}`;
-        
-      case TraceType.MICROSERVICE_CALL:
-        const service = this.getRandomElement(['auth-service', 'payment-service', 'notification-service', 'user-service']);
-        const serviceMethod = this.getRandomElement(['getUser', 'processPayment', 'sendNotification', 'validateToken']);
-        return `${service.replace('-', '_')}_${serviceMethod}`;
-        
-      case TraceType.EXTERNAL_API:
-        const api = this.getRandomElement(['stripe', 'twilio', 'mailchimp', 'aws-s3']);
-        const apiAction = this.getRandomElement(['getData', 'sendData', 'authenticate', 'validate']);
-        return `external_${api}_${apiAction}`;
-        
-      default:
-        return 'generic_trace';
-    }
-  }
-
-  /**
-   * Get a random value from an object with weighted probabilities
-   */
-  private getWeightedRandomValue<T extends string>(weights: Record<T, number>): T {
-    const keys = Object.keys(weights) as T[];
-    const totalWeight = keys.reduce((sum, key) => sum + weights[key], 0);
-    
-    let random = Math.random() * totalWeight;
-    let weightSum = 0;
-    
-    for (const key of keys) {
-      weightSum += weights[key];
-      if (random <= weightSum) {
-        return key;
+      // schedule next trace
+      if (this.autoTraceEnabled) {
+        this.startAutoTraceTimeout();
       }
-    }
-    
-    return keys[0]; // Fallback
+    }, this.autoTraceTimeoutMs);
   }
 
-  /**
-   * Get a random element from an array, optionally with weights
-   */
-  private getRandomElement<T>(items: T[], weights?: number[]): T {
-    if (!weights) {
-      return items[Math.floor(Math.random() * items.length)];
+  private generateRandomTrace() {
+    try {
+      this.logger.debug('Generating random trace');
+
+      const isError = Math.random() < this.errorPercent / 100;
+      const serviceName = this.pickRandom(this.services);
+      const operationName = this.pickRandom(
+        this.operations[serviceName] || ['operation'],
+      ) as string;
+
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const spanId = crypto.randomBytes(8).toString('hex');
+      const parentSpanId = crypto.randomBytes(8).toString('hex');
+
+      // create trace + span
+      const traceExternalCall = Math.random() > 0.5;
+
+      // random duration between 5 and 500ms
+      const duration = Math.floor(Math.random() * 495) + 5;
+      const timestamp = Date.now();
+      const payload = {
+        operation: operationName,
+        message: `${operationName} operation on ${serviceName}`,
+      };
+
+      this.logger.debug(`Auto-generating trace: ${serviceName}.${operationName} (error: ${isError}, external: ${traceExternalCall}, duration: ${duration}ms)`);
+
+      const trace = {
+        id: `trace_${timestamp}_${Math.floor(Math.random() * 1000)}`,
+        traceId,
+        spanId,
+        parentSpanId: traceExternalCall ? parentSpanId : null,
+        operation: operationName,
+        name: operationName,
+        message: `${operationName} operation on ${serviceName}`,
+        serviceName,
+        kind: 'SERVER',
+        timestamp: new Date(timestamp).toISOString(),
+        startTime: new Date(timestamp).toISOString(),
+        endTime: new Date(timestamp + duration).toISOString(),
+        durationMs: duration,
+        attributes: {
+          'service.name': serviceName,
+          'operation.name': operationName,
+          'request.method': 'POST',
+          'request.path': `/${serviceName}/${operationName}`,
+          duration: duration + 'ms',
+        },
+        status: isError ? 'ERROR' : 'OK',
+        events: isError
+          ? [
+              {
+                name: 'exception',
+                time: new Date(timestamp + Math.floor(duration / 2)).toISOString(),
+                attributes: {
+                  'exception.type': this.pickRandom([
+                    'ValidationError',
+                    'TimeoutError',
+                    'DatabaseError',
+                    'AuthenticationError',
+                  ]),
+                  'exception.message': `Error during ${operationName} operation`,
+                  'exception.stacktrace': `Error: Error during ${operationName} operation\n    at ${serviceName}.${operationName} (${serviceName}.js:123:45)\n    at processTicksAndRejections (node:internal/process/task_queues:95:5)`,
+                },
+              },
+            ]
+          : [],
+      };
+
+      // Store trace via the trace service - pass null for span since we're creating synthetic traces
+      this.traceService.storeTrace(null, trace.message, trace.operation);
+
+      // for debugging purposes
+      console.log('Generated trace payload:', JSON.stringify(payload));
+
+      // Emit an event with the generated trace
+      this.eventEmitter.emit('trace.generated', trace);
+    } catch (error) {
+      console.error('Error in auto-trace generation:', error);
     }
-    
-    // Normalize weights if provided
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-    const normalizedWeights = weights.map(w => w / totalWeight);
-    
-    const random = Math.random();
-    let weightSum = 0;
-    
-    for (let i = 0; i < items.length; i++) {
-      weightSum += normalizedWeights[i];
-      if (random <= weightSum) {
-        return items[i];
-      }
+  }
+
+  private pickRandom<T>(items: T[]): T {
+    if (!items || items.length === 0) {
+      return null;
     }
-    
-    return items[0]; // Fallback
+    const randomIndex = Math.floor(Math.random() * items.length);
+    if (!items[randomIndex]) {
+      return items[0]; // Fallback
+    }
+    return items[randomIndex];
+  }
+
+  setEnabled(enabled: boolean): void {
+    this.logger.debug(`Auto trace service ${enabled ? 'enabled' : 'disabled'}`);
+    this.enabled = enabled;
+    this.autoTraceEnabled = enabled;
+    if (enabled) {
+      this.startGeneratingTraces();
+    } else {
+      this.stopGeneratingTraces();
+    }
+    this.saveState();
+  }
+
+  setTimeoutMs(timeoutMs: number): void {
+    this.timeoutMs = timeoutMs;
+    this.setAutoTraceTimeoutMs(timeoutMs);
+    this.logger.debug(`Auto trace timeout set to ${timeoutMs}ms`);
+    this.saveState();
+  }
+
+  setErrorRate(rate: number): void {
+    if (rate >= 0 && rate <= 1) {
+      this.errorRate = rate;
+      this.setErrorPercent(rate * 100);
+      this.logger.debug(`Auto trace error rate set to ${rate * 100}%`);
+      this.saveState();
+    }
+  }
+
+  getState(): { enabled: boolean; timeoutMs: number; errorRate: number } {
+    return {
+      enabled: this.enabled,
+      timeoutMs: this.timeoutMs,
+      errorRate: this.errorRate,
+    };
+  }
+
+  private startAutoTrace(): void {
+    if (this.interval) {
+      clearInterval(this.interval);
+    }
+    this.logger.debug(`Starting auto trace with interval ${this.timeoutMs}ms`);
+    this.startGeneratingTraces();
+  }
+
+  private stopAutoTrace(): void {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+    this.stopGeneratingTraces();
+    this.logger.debug('Auto trace stopped');
+  }
+
+  private restartAutoTrace(): void {
+    this.stopAutoTrace();
+    this.startAutoTrace();
+  }
+
+  private getRandomOperation(): string {
+    const randomIndex = Math.floor(Math.random() * this.operations[this.getRandomService()].length);
+    this.lastOperation = this.operations[this.getRandomService()][randomIndex];
+    return this.lastOperation;
+  }
+
+  private getRandomService(): string {
+    const randomIndex = Math.floor(Math.random() * this.services.length);
+    return this.services[randomIndex];
   }
 } 

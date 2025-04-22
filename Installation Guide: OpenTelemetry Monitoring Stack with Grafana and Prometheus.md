@@ -135,8 +135,8 @@ NESTJS_IP=$(kubectl get svc -n nestjs nestjs-app-service -o jsonpath='{.status.l
 The UI allows you to:
 
 1. **Choose a collector type**:
-   - Sawmills Collector (default)
-   - OpenTelemetry Collector
+   - Lumigo Collector
+   - OpenTelemetry Collector (default)
    - Custom Collector (define your own endpoints)
 
 2. **Enable Test Mode**:

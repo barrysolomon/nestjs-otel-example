@@ -600,12 +600,6 @@
                 </label>
               </div>
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="sawmillsEndpoint">
-                <label class="form-check-label" for="sawmillsEndpoint">
-                  Sawmills
-                </label>
-              </div>
-              <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="customEndpoint">
                 <label class="form-check-label" for="customEndpoint">
                   Custom Endpoint
@@ -644,6 +638,13 @@
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('Dashboard initialized');
       
+      // Load saved trace payload
+      loadSavedTracePayload();
+      
+      // Set up trace payload controls
+      document.getElementById('reset-trace-payload-btn').addEventListener('click', resetTracePayload);
+      document.getElementById('send-trace-btn').addEventListener('click', sendManualTrace);
+      
       // Initial page load
       await Promise.all([
         checkAutoTracerStatus(),
@@ -659,10 +660,6 @@
       document.getElementById('start-auto-log-btn').addEventListener('click', startAutoLogger);
       document.getElementById('stop-auto-log-btn').addEventListener('click', stopAutoLogger);
 
-      // Set up Manual Trace Control
-      document.getElementById('send-trace-btn').addEventListener('click', sendManualTrace);
-      document.getElementById('reset-trace-payload-btn').addEventListener('click', resetTracePayload);
-      
       // Set up Manual Log Control
       document.getElementById('send-log-btn').addEventListener('click', sendManualLog);
 
@@ -734,7 +731,6 @@
         const endpoints = {
           local: document.getElementById('otelEndpoint').checked,
           lumigo: document.getElementById('lumigoEndpoint').checked,
-          sawmills: document.getElementById('sawmillsEndpoint').checked,
           custom: document.getElementById('customEndpoint').checked ? {
             url: document.getElementById('customTracesEndpoint').value,
             header: document.getElementById('customAuthHeader').value
@@ -771,7 +767,6 @@
           // Set checkbox states
           document.getElementById('otelEndpoint').checked = config.otel.enabled;
           document.getElementById('lumigoEndpoint').checked = config.lumigo.enabled;
-          document.getElementById('sawmillsEndpoint').checked = config.sawmills.enabled;
           document.getElementById('customEndpoint').checked = config.custom.enabled;
           
           // Set custom endpoint values if enabled
@@ -801,12 +796,6 @@
             tracesEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
             logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
             metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318'
-          },
-          sawmills: {
-            enabled: document.getElementById('sawmillsEndpoint').checked,
-            tracesEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-            logsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-            metricsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4317'
           },
           custom: {
             enabled: document.getElementById('customEndpoint').checked,
@@ -991,11 +980,11 @@
           }
         }
         
-        // Create the request payload
+        // Create the request payload by spreading the custom payload first
         const payload = {
+          ...customPayload,  // Put custom payload first so operation and message don't override custom values
           operation: includeErrors ? `${operation}_error` : operation,
-          message,
-          ...customPayload
+          message
         };
         
         console.log('Sending trace with payload:', payload);
@@ -1018,6 +1007,8 @@
         } else {
           resultEl.textContent = `Trace sent successfully! Trace ID: ${data.traceId || 'unknown'}`;
           resultEl.className = 'status success';
+          // Only save successful payloads
+          localStorage.setItem('lastValidTracePayload', customPayloadText);
         }
         resultEl.style.display = 'block';
         
@@ -1162,20 +1153,40 @@
       }
     }
 
+    // Default trace payload template
+    const defaultTracePayload = {
+      "user_id": "user-123",
+      "source": "manual-test",
+      "priority": "high",
+      "attributes": {
+        "test_run": true,
+        "component": "api"
+      }
+    };
+
     // Function to reset trace payload to default
     function resetTracePayload() {
-      const defaultPayload = {
-        user_id: "user-123",
-        source: "manual-test",
-        priority: "high",
-        attributes: {
-          test_run: true,
-          component: "api"
+      const payloadElement = document.getElementById('trace-custom-payload');
+      payloadElement.value = JSON.stringify(defaultTracePayload, null, 2);
+      localStorage.setItem('lastValidTracePayload', payloadElement.value);
+    }
+
+    // Function to load saved trace payload
+    function loadSavedTracePayload() {
+      const payloadElement = document.getElementById('trace-custom-payload');
+      const savedPayload = localStorage.getItem('lastValidTracePayload');
+      if (savedPayload) {
+        try {
+          // Validate that the saved payload is valid JSON
+          JSON.parse(savedPayload);
+          payloadElement.value = savedPayload;
+        } catch (e) {
+          console.error('Invalid saved payload:', e);
+          resetTracePayload();
         }
-      };
-      
-      document.getElementById('trace-custom-payload').value = JSON.stringify(defaultPayload, null, 2);
-      document.getElementById('trace-include-errors').checked = false;
+      } else {
+        resetTracePayload();
+      }
     }
   </script>
 </body>

@@ -25,11 +25,6 @@ export class OtelConfigService {
         logsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
         metricsEndpoint: 'http://otel-collector.observability.svc.cluster.local:4318',
       },
-      sawmills: {
-        tracesEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-        logsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4318',
-        metricsEndpoint: 'http://sawmills-collector.sawmills.svc.cluster.local:4317',
-      },
       custom: {
         tracesEndpoint: '',
         logsEndpoint: '',
@@ -44,7 +39,6 @@ export class OtelConfigService {
   private telemetryConfig = {
     useLocal: true,
     useLumigo: false,
-    useSawmills: false,
     customEndpoint: null
   };
 
@@ -190,7 +184,6 @@ export class OtelConfigService {
   async updateExporters(config: {
     useLocal: boolean;
     useLumigo: boolean;
-    useSawmills: boolean;
     customEndpoint: any | null;
   }): Promise<boolean> {
     this.logger.log(`Updating OpenTelemetry exporters: ${JSON.stringify(config)}`);

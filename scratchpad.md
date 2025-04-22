@@ -14,7 +14,6 @@ Installation
    ```
 
 2. **Deploy Prometheus and Grafana using Helm**:
-   This seems to be the base of your monitoring stack. You should install the kube-prometheus-stack:
    ```bash
    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
    helm repo update
@@ -55,22 +54,34 @@ Installation
    kubectl apply -f k8s/nestjs-app.yaml
    ```
 
+6. **Deploy Kubecost**:
+   ```bash
+   helm install kubecost cost-analyzer \
+   --repo https://kubecost.github.io/cost-analyzer/ \
+   --namespace kubecost --create-namespace
+   ```
+
 7. **Apply Network Policies** (if needed):
    ```bash
    kubectl apply -f k8s/allow-monitoring.yaml
    kubectl apply -f k8s/allow-nestjs-to-otel.yaml
    ```
 
-8. **Apply Network Policies** (if needed):
-   ```bash
-   kubectl apply -f k8s/allow-monitoring.yaml
-   kubectl apply -f k8s/allow-nestjs-to-otel.yaml
-   ```
-
 kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
+
 kubectl port-forward -n observability svc/prometheus-grafana 3001:80
 
 kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
+
+kubectl port-forward -n observability svc/prometheus-grafana 3000:80
+
+kubectl port-forward -n kubecost deployment/kubecost-cost-analyzer 9003
+curl http://localhost:9003/metrics
+
+http://198.19.249.2/
+http://localhost:9090
+http://localhost:3001/login
+
 
 --------------
 NESTJS APP
@@ -99,11 +110,40 @@ kubectl rollout restart deployment nestjs-app -n nestjs
 # NestJS Application (access your app at http://localhost:3001)
 kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
 
+http://198.19.249.2/
+
 
 for i in {1..10}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; sleep 1; done
 for i in {1..100}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
 for i in {1..1000}; do curl http://localhost:3001 -s > /dev/null && echo "API call $i complete"; done
 
+
+
+--------------
+LUMIGO
+--------------
+
+#  Dora The Explorer
+
+helm repo add lumigo https://lumigo-io.github.io/lumigo-kubernetes-operator && \
+helm repo update && \
+echo "
+cluster:
+  name: orbstack
+  clusterCollection:
+    metrics:
+      essentialOnly: false
+lumigoToken:
+  value: t_f8f7b905da964eef89261
+monitoredNamespaces:
+  - namespace: nestjs
+    loggingEnabled: true
+    tracingEnabled: true
+" | helm upgrade -i lumigo lumigo/lumigo-operator --namespace lumigo-system --create-namespace --values -
+
+k delete -f k8s/nestjs-app.yaml  -n nestjs
+k apply -f k8s/nestjs-app.yaml  -n nestjs
+kubectl port-forward service/nestjs-app-service 3000:80 -n nestjs
 
 
 --------------

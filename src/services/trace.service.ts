@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Span, SpanKind, trace, SpanStatusCode, context } from '@opentelemetry/api';
+import { Span, SpanKind, trace, SpanStatusCode, context, Attributes } from '@opentelemetry/api';
 import { log } from '../logger.config';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -257,20 +257,28 @@ export class TraceService {
     }
     
     try {
-      // In a real implementation, we would extract actual attributes from the span
-      // For this example, we'll generate some sample attributes
-      attributes['span.kind'] = 'server';
-      attributes['service.name'] = 'nestjs-opentelemetry-example';
-      
-      // Random HTTP attributes
-      if (Math.random() > 0.5) {
-        attributes['http.method'] = 'GET';
-        attributes['http.url'] = 'https://api.example.com/data';
-        attributes['http.status_code'] = '200';
-      } else {
-        attributes['db.system'] = 'postgresql';
-        attributes['db.operation'] = 'SELECT';
-        attributes['db.statement'] = 'SELECT * FROM users WHERE id = ?';
+      // Get actual attributes from the span using the API
+      const spanContext = span.spanContext();
+      const spanAttributes = (span as any)._attributes || new Map();
+      if (spanAttributes) {
+        // Convert attributes to string values
+        if (spanAttributes instanceof Map) {
+          spanAttributes.forEach((value, key) => {
+            attributes[key] = String(value);
+          });
+        } else if (typeof spanAttributes === 'object') {
+          Object.entries(spanAttributes).forEach(([key, value]) => {
+            attributes[key] = String(value);
+          });
+        }
+      }
+
+      // Add default attributes if they don't exist
+      if (!attributes['service.name']) {
+        attributes['service.name'] = 'nestjs-opentelemetry-example';
+      }
+      if (!attributes['span.kind']) {
+        attributes['span.kind'] = 'server';
       }
     } catch (error) {
       console.error('Error getting span attributes:', error);
@@ -473,5 +481,43 @@ export class TraceService {
     
     this.saveTracesToFile();
     return this.getTraceStatistics();
+  }
+
+  private createChildSpan(
+    parentSpan: Span,
+    name: string,
+    attributes: Attributes = {},
+  ): Span {
+    const tracer = trace.getTracer('http-client');
+    const span = tracer.startSpan(name, {
+      attributes: {
+        ...attributes,
+        'span.kind': SpanKind.CLIENT,
+      },
+      context: trace.setSpan(context.active(), parentSpan),
+    });
+    return span;
+  }
+
+  private async withChildSpan<T>(
+    parentSpan: Span,
+    name: string,
+    attributes: Attributes,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const span = this.createChildSpan(parentSpan, name, attributes);
+    try {
+      const result = await fn();
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
   }
 } 

@@ -5,6 +5,7 @@ import { OtelConfigService } from './otel-config/otel-config.service';
 import { LogService } from './services/log.service';
 import { TraceService } from './services/trace.service';
 import { OnEvent } from '@nestjs/event-emitter';
+import { trace, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 
 @Controller('debug')
 export class DebugController implements OnModuleInit {
@@ -13,7 +14,6 @@ export class DebugController implements OnModuleInit {
     private telemetryEndpoints = {
         local: true,
         lumigo: false,
-        sawmills: false,
         custom: null
     };
     
@@ -292,32 +292,54 @@ export class DebugController implements OnModuleInit {
     recordTrace(@Body() traceData: any) {
         console.log('Record trace API called', traceData);
         try {
-            // Generate trace using trace service
-            console.log('Calling traceService.storeTrace with:', { 
-                message: traceData.message || 'Manual trace', 
-                operation: traceData.operation || 'manual-trace'
+            // Create a tracer
+            const tracer = trace.getTracer('manual-tracer');
+            
+            // Start a new span
+            const span = tracer.startSpan(traceData.operation || 'manual-trace', {
+                kind: SpanKind.SERVER,
+                attributes: {
+                    'manual.trace': 'true',
+                    'service.name': 'nestjs-opentelemetry-example'
+                }
             });
-            const trace = this.traceService.storeTrace(
-                null, 
-                traceData.message || 'Manual trace', 
+
+            // Add custom attributes to the span
+            if (traceData.attributes) {
+                span.setAttributes(traceData.attributes);
+            }
+
+            // Add other custom fields as attributes
+            if (traceData.user_id) span.setAttribute('user_id', traceData.user_id);
+            if (traceData.source) span.setAttribute('source', traceData.source);
+            if (traceData.priority) span.setAttribute('priority', traceData.priority);
+
+            // Store the trace
+            const storedTrace = this.traceService.storeTrace(
+                span,
+                traceData.message || 'Manual trace',
                 traceData.operation || 'manual-trace'
             );
-            
+
+            // End the span
+            span.setStatus({ code: SpanStatusCode.OK });
+            span.end();
+
             // If we received a trace back, add it to our local traceHistory
-            if (trace) {
-                console.log('Received trace back from traceService, adding to traceHistory', trace.id);
-                this.traceHistory.unshift(trace);
+            if (storedTrace) {
+                console.log('Received trace back from traceService, adding to traceHistory', storedTrace.id);
+                this.traceHistory.unshift(storedTrace);
                 // Keep history size reasonable
                 if (this.traceHistory.length > 1000) {
                     this.traceHistory.pop();
                 }
                 console.log(`TraceHistory length is now: ${this.traceHistory.length}`);
             }
-            
+
             return {
                 status: 'success',
                 message: 'Trace recorded successfully',
-                traceId: trace.traceId || 'unknown'
+                traceId: storedTrace.traceId || 'unknown'
             };
         } catch (error) {
             console.error('Error recording trace:', error);
@@ -542,7 +564,6 @@ export class DebugController implements OnModuleInit {
             this.otelConfigService.updateExporters({
                 useLocal: config.local || false,
                 useLumigo: config.lumigo || false,
-                useSawmills: config.sawmills || false,
                 customEndpoint: config.custom || null
             });
             

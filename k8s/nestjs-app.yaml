@@ -40,8 +40,11 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
 
+            - name: NODE_ENV
+              value: "production"
+
             - name: ENABLE_OTEL
-              value: "false"
+              value: "true"
 
             - name: OTEL_SERVICE_NAME
               value: "nestjs-app"
@@ -58,38 +61,38 @@ spec:
             - name: OTEL_TRACES_EXPORTER
               value: "otlp"
 
-            # Setting specific endpoints for each signal type using HTTP
-            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-              #value: "ga-otlp.lumigo-tracer-edge.golumigo.com"
-              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"
+            # # # Setting specific endpoints for each signal type using HTTP
+            # - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            # #   value: "ga-otlp.lumigo-tracer-edge.golumigo.com"
+            #   value: "http://otel-collector.observability.svc.cluster.local:4318/v1/traces"
+            # #  value: "http://lumigo-lumigo-operator-telemetry-proxy-service.lumigo-system.svc.cluster.local/v1/traces"
 
+            # - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+            # #   value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
+            #   value: "http://otel-collector.observability.svc.cluster.local:4318/v1/logs"
+            # #  value: "http://lumigo-lumigo-operator-telemetry-proxy-service.lumigo-system.svc.cluster.local/v1/logs"
 
-            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
-              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
-              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/logs"
+            # - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+            # #   value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
+            #   value: "http://otel-collector.observability.svc.cluster.local:4318/v1/metrics"
+            # #  value: "http://lumigo-lumigo-operator-telemetry-proxy-service.lumigo-system.svc.cluster.local/v1/metrics"
               
-            - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
-              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
-              value: "http://otel-collector.observability.svc.cluster.local:4318/v1/metrics"
-
-            # Keeping this for backward compatibility
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              #value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
-              value: "http://otel-collector.observability.svc.cluster.local:4318"
-
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              #value: "https"
-              value: "http"
-
-            - name: NODE_ENV
-              value: "production"
+            # # Keeping this for backward compatibility
+            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            # #  value: "https://ga-otlp.lumigo-tracer-edge.golumigo.com"
+            # #  value: "http://otel-collector.observability.svc.cluster.local:4318"
+            # #  value: "http://lumigo-lumigo-operator-telemetry-proxy-service.lumigo-system.svc.cluster.local"
               
-            - name: OTEL_EXPORTER_OTLP_INSECURE
-              #value: "false"
-              value: "true"
+            # - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            #   #value: "https"
+            #   value: "http"
+              
+            # - name: OTEL_EXPORTER_OTLP_INSECURE
+            #   #value: "false"
+            #   value: "true"
 
-            - name: OTEL_EXPORTER_OTLP_HEADERS
-              value: "Authorization=LumigoToken t_f8f7b905da964eef89261"
+            # - name: OTEL_EXPORTER_OTLP_HEADERS
+            #   value: "Authorization=LumigoToken t_f8f7b905da964eef89261"
 
             - name: OTEL_SDK_DISABLED
               value: "false"
@@ -122,7 +125,7 @@ spec:
               path: /health
               port: 3000
             initialDelaySeconds: 15
-            periodSeconds: 60
+            periodSeconds: 10
 
 ---
 apiVersion: v1

@@ -52,7 +52,7 @@ The application provides a user interface for interacting with telemetry data:
 The OpenTelemetry collector can be configured through the UI or by editing the `k8s/otel-collector-config.yaml` file.
 
 Supported collector types:
-- **Sawmills**: Preconfigured for Lumigo Sawmills
+- **Lumigo**: Preconfigured for Lumigo Collector
 - **OpenTelemetry**: Standard OpenTelemetry Collector
 - **Custom**: Custom endpoints for traces, logs, and metrics
 
